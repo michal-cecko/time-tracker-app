@@ -25,7 +25,7 @@ services:
       # HTTPS — catch-all on same host, priority 10 (below api's 100)
       - "traefik.http.routers.lapse-web-secure.rule=Host(`lapse.cecko.dev`)"
       - "traefik.http.routers.lapse-web-secure.entrypoints=websecure"
-      - "traefik.http.routers.lapse-web-secure.tls.certresolver=myresolver"
+      - "traefik.http.routers.lapse-web-secure.tls.certresolver=letsencrypt"
       - "traefik.http.routers.lapse-web-secure.priority=10"
 
       # Service
