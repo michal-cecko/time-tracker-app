@@ -27,7 +27,14 @@ export function DesktopToday({ onSelectTask, onSelectProject }: { onSelectTask: 
     trees.forEach((tree, i) => tree.forEach((t) => walk(t, projects[i])));
     const open = all.filter(({ task }) => !['DONE', 'INVOICED'].includes(task.status));
     setUrgent(open.filter(({ task }) => task.urgent));
-    setAlso(open.filter(({ task }) => !task.urgent && (isToday(task.dueDate) || task.running)).slice(0, 10));
+
+    // "Also today" — strict: due today OR currently running. Fallback (when seed
+    // data has no due dates): show in-progress / in-review work so the section
+    // never collapses to nothing on a fresh install.
+    const nonUrgent = open.filter(({ task }) => !task.urgent);
+    const strict = nonUrgent.filter(({ task }) => isToday(task.dueDate) || task.running);
+    const fallback = nonUrgent.filter(({ task }) => ['IN_PROGRESS', 'IN_REVIEW'].includes(task.status));
+    setAlso((strict.length ? strict : fallback).slice(0, 10));
     setWeekly(await api<WeeklyReport>('/reports/weekly'));
   };
 

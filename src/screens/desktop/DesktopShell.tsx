@@ -3,7 +3,7 @@ import { Icon } from '@/components/ui/Icon';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import { useRunning } from '@/state/running';
-import type { Project } from '@/api/types';
+import type { Project, Task, TimeEntry } from '@/api/types';
 import { fmtHM, fmtHMS } from '@/utils/format';
 import { useAuth } from '@/auth/AuthContext';
 import { DesktopToday } from './DesktopToday';
@@ -27,13 +27,36 @@ export function DesktopShell() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const { running, elapsed, tick } = useRunning();
+  const { running, elapsed, tick, setRunning } = useRunning();
   const { user, logout } = useAuth();
 
   const load = async () => setProjects(await api<Project[]>('/projects?archived=all'));
+
+  // Hydrate the running-timer state on boot — fetches the open TimeEntry and
+  // the task it belongs to so the title-bar pill and inspector can light up.
+  const hydrateRunning = async () => {
+    try {
+      const entry = await api<TimeEntry | null>('/time-entries/running');
+      if (!entry || !entry.id) { setRunning(null); return; }
+      const task = await api<Task>(`/tasks/${entry.taskId}`).catch(() => null);
+      setRunning({
+        entryId: entry.id,
+        taskId: entry.taskId,
+        taskTitle: task?.title,
+        startedAt: entry.startedAt,
+      });
+    } catch { /* unauthenticated or offline; ignore */ }
+  };
+
   useEffect(() => {
     load();
-    const offs = [onRealtime('project.upserted', load), onRealtime('project.deleted', load)];
+    hydrateRunning();
+    const offs = [
+      onRealtime('project.upserted', load),
+      onRealtime('project.deleted', load),
+      onRealtime('timer.started', hydrateRunning),
+      onRealtime('timer.stopped', () => setRunning(null)),
+    ];
     return () => offs.forEach((o) => o());
   }, []);
 
@@ -42,6 +65,15 @@ export function DesktopShell() {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [running, tick]);
+
+  // Auto-populate the inspector with the running task on boot (and whenever
+  // it changes). The user can still click anything else to override.
+  useEffect(() => {
+    setSelectedTaskId((cur) => {
+      if (cur) return cur;
+      return running?.taskId ?? null;
+    });
+  }, [running?.taskId]);
 
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
@@ -58,6 +90,7 @@ export function DesktopShell() {
   const active = projects.filter((p) => !p.archived);
   const archived = projects.filter((p) => p.archived);
   const totalTracked = projects.reduce((s, p) => s + p.trackedSeconds, 0);
+  const todayCount = active.reduce((s, p) => s + p.openTaskCount, 0);
   const initial = (user?.name ?? user?.email ?? 'L').slice(0, 1).toUpperCase();
 
   const renderCenter = () => {
@@ -84,14 +117,17 @@ export function DesktopShell() {
             {running ? (
               <>
                 <span className="dt-tp-live" />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
+                  {running.taskTitle ?? 'Tracking'}
+                </span>
                 <span className="dt-tp-time">{fmtHMS(elapsed)}</span>
                 <span
                   className="dt-tp-stop"
                   onClick={async (e) => { e.stopPropagation(); await api('/time-entries/stop', { method: 'POST' }); }}
                   role="button"
-                  aria-label="Stop timer"
+                  aria-label="Pause timer"
                 >
-                  <Icon.Stop size={11} />
+                  <Icon.Pause size={11} />
                 </span>
               </>
             ) : <><Icon.Clock size={12} /> Idle</>}
@@ -106,7 +142,7 @@ export function DesktopShell() {
       <div className="dt-body">
         <aside className="dt-rail">
           <div className="dt-rail-section">
-            <RailNav label="Today"    icon={<Icon.Home size={14} />}     active={view.kind === 'today'}    onClick={() => setView({ kind: 'today' })} />
+            <RailNav label="Today"    icon={<Icon.Home size={14} />}     active={view.kind === 'today'}    onClick={() => setView({ kind: 'today' })} badge={todayCount} />
             <RailNav label="Calendar" icon={<Icon.Calendar size={14} />} active={view.kind === 'calendar'} onClick={() => setView({ kind: 'calendar' })} />
             <RailNav label="Reports"  icon={<Icon.Chart size={14} />}    active={view.kind === 'reports'}  onClick={() => setView({ kind: 'reports' })} />
             <RailNav label="History"  icon={<Icon.History size={14} />}  active={view.kind === 'history'}  onClick={() => setView({ kind: 'history' })} />
@@ -196,10 +232,11 @@ export function DesktopShell() {
   );
 }
 
-function RailNav({ label, icon, active, onClick }: { label: string; icon: React.ReactNode; active?: boolean; onClick: () => void }) {
+function RailNav({ label, icon, active, onClick, badge }: { label: string; icon: React.ReactNode; active?: boolean; onClick: () => void; badge?: number }) {
   return (
     <button className={`dt-rail-item ${active ? 'active' : ''}`} onClick={onClick}>
       {icon}<span className="dt-truncate">{label}</span>
+      {badge != null && badge > 0 && <span className="dt-badge">{badge}</span>}
     </button>
   );
 }
