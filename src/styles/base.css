@@ -1,0 +1,118 @@
+/* Lapse — base global resets and the iPhone preview frame (web only) */
+html, body, #root { height: 100%; margin: 0; padding: 0; }
+body {
+  background: #0a0908;
+  color: var(--text);
+  font-family: var(--font-sans);
+  overscroll-behavior: none;
+}
+
+/* iPhone preview frame for the web target. On Capacitor / Tauri builds,
+   `.is-native` is set and the frame is bypassed. */
+.preview-root {
+  min-height: 100vh;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 0;
+  background:
+    radial-gradient(60% 40% at 50% 0%, rgba(255, 122, 69, 0.05), transparent 70%),
+    #0a0908;
+}
+.iphone-frame {
+  width: min(420px, 100vw);
+  min-height: 100vh;
+  position: relative;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--line-strong), 0 50px 80px rgba(0, 0, 0, 0.4);
+}
+@media (min-width: 720px) {
+  .preview-root { padding: 40px; align-items: center; }
+  .iphone-frame {
+    height: min(900px, calc(100vh - 80px));
+    min-height: unset;
+    border-radius: 44px;
+    border: 1px solid var(--line-strong);
+  }
+}
+.is-native .preview-root { padding: 0; background: var(--bg); }
+.is-native .iphone-frame { width: 100%; height: 100vh; border-radius: 0; border: 0; box-shadow: none; }
+
+/* Auth shell — full-screen on every form factor */
+.auth-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 24px 32px;
+}
+.auth-logo {
+  width: 64px; height: 64px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--accent), #c84d22);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-weight: 600; font-size: 28px;
+  color: rgba(0, 0, 0, 0.78);
+  margin-bottom: 18px;
+}
+.auth-title {
+  font-size: 22px; font-weight: 600; letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+.auth-sub { font-size: 13.5px; color: var(--text-3); margin-bottom: 28px; }
+.auth-form {
+  width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px;
+}
+.field {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.field label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
+.field input { font-size: 15px; color: var(--text); background: transparent; border: 0; outline: 0; padding: 0; }
+.auth-form .btn.lg { margin-top: 8px; justify-content: center; }
+.auth-form .row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--text-3); }
+.checkbox {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--text-2); cursor: pointer;
+}
+.checkbox .box {
+  width: 18px; height: 18px; border-radius: 5px;
+  border: 1.5px solid var(--text-4);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.checkbox input { display: none; }
+.checkbox.on .box { background: var(--accent); border-color: var(--accent); color: #1a0e07; }
+.auth-error {
+  background: color-mix(in oklab, var(--pri-urgent) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--pri-urgent) 28%, transparent);
+  color: #ffb3a8;
+  font-size: 12.5px;
+  padding: 8px 12px; border-radius: 10px;
+}
+.auth-link {
+  color: var(--accent); font-size: 13px; font-weight: 500;
+  background: transparent; border: 0; padding: 0; cursor: pointer;
+}
+
+/* Strength meter (Reset screen) */
+.strength { display: flex; gap: 4px; }
+.strength .seg { flex: 1; height: 4px; border-radius: 2px; background: var(--bg-elev-2); }
+.strength .seg.on { background: var(--accent); }
+.strength.weak .seg.on { background: var(--pri-urgent); }
+.strength.fair .seg.on { background: var(--st-approved); }
+.strength.good .seg.on { background: var(--accent); }
+.strength.strong .seg.on { background: var(--st-done); }
+
+/* Misc helpers used across screens */
+.spacer { flex: 1; }
+.hstack { display: flex; align-items: center; gap: 8px; }
+.vstack { display: flex; flex-direction: column; gap: 8px; }
+.muted { color: var(--text-3); }
+.faint { color: var(--text-4); }
+.right { margin-left: auto; }

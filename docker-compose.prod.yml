@@ -1,0 +1,41 @@
+# Lapse web — production deploy for Dokploy on the VPS.
+#   Catches lapse.cecko.dev/* except the /api, /realtime, /docs paths
+#   which are claimed by the time-tracker-api compose (higher priority).
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: https://lapse.cecko.dev/api/v1
+    container_name: lapse-web
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=web"
+
+      # HTTP → HTTPS redirect
+      - "traefik.http.routers.lapse-web.rule=Host(`lapse.cecko.dev`)"
+      - "traefik.http.routers.lapse-web.entrypoints=web"
+      - "traefik.http.routers.lapse-web.middlewares=lapse-web-redirect"
+      - "traefik.http.routers.lapse-web.priority=10"
+
+      # HTTPS — catch-all on the same host (priority 10, lower than api's 100)
+      - "traefik.http.routers.lapse-web-secure.rule=Host(`lapse.cecko.dev`)"
+      - "traefik.http.routers.lapse-web-secure.entrypoints=websecure"
+      - "traefik.http.routers.lapse-web-secure.tls.certresolver=myresolver"
+      - "traefik.http.routers.lapse-web-secure.priority=10"
+
+      # Service
+      - "traefik.http.services.lapse-web.loadbalancer.server.port=80"
+
+      # Redirect middleware
+      - "traefik.http.middlewares.lapse-web-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.lapse-web-redirect.redirectscheme.permanent=true"
+    restart: unless-stopped
+
+networks:
+  web:
+    external: true
