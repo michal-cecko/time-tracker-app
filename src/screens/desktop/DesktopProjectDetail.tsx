@@ -1,15 +1,25 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { NestedTaskRow } from '@/components/ui/TaskRow';
+import { DeleteProjectModal } from '@/components/ui/DeleteProjectModal';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import type { Project, Task } from '@/api/types';
 import { fmtHM } from '@/utils/format';
 
-export function DesktopProjectDetail({ id, onSelectTask }: { id: string; onSelectTask: (id: string) => void }) {
+export function DesktopProjectDetail({
+  id,
+  onSelectTask,
+  onDeleted,
+}: {
+  id: string;
+  onSelectTask: (id: string) => void;
+  onDeleted?: () => void;
+}) {
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const load = async () => {
     const [projects, tree] = await Promise.all([
@@ -43,6 +53,13 @@ export function DesktopProjectDetail({ id, onSelectTask }: { id: string; onSelec
         </div>
         <span className="spacer" />
         <button className="btn" onClick={async () => { await api(`/projects/${project.id}/${project.archived ? 'unarchive' : 'archive'}`, { method: 'POST' }); }}><Icon.Archive size={14} />{project.archived ? 'Unarchive' : 'Archive'}</button>
+        <button
+          className="btn"
+          onClick={() => setConfirmDelete(true)}
+          style={{ color: 'var(--pri-urgent)', borderColor: 'color-mix(in oklab, var(--pri-urgent) 28%, var(--border))' }}
+        >
+          <Icon.Trash size={14} />Delete
+        </button>
         <button className="btn primary"><Icon.Plus size={14} />New task</button>
       </div>
 
@@ -58,6 +75,17 @@ export function DesktopProjectDetail({ id, onSelectTask }: { id: string; onSelec
         ))}
         {tasks.length === 0 && <div style={{ padding: 24, color: 'var(--text-3)' }}>No tasks yet.</div>}
       </div>
+
+      {confirmDelete && (
+        <DeleteProjectModal
+          project={{ id: project.id, name: project.name }}
+          onClose={() => setConfirmDelete(false)}
+          onDeleted={() => {
+            setConfirmDelete(false);
+            onDeleted?.();
+          }}
+        />
+      )}
     </>
   );
 }

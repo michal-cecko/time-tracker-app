@@ -16,6 +16,7 @@
     "tauri:build": "cd src-tauri && cargo tauri build"
   },
   "dependencies": {
+    "@capacitor/android": "^7.0.0",
     "@capacitor/app": "^7.0.0",
     "@capacitor/core": "^7.0.0",
     "@capacitor/preferences": "^7.0.0",

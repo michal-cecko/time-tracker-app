@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { NestedTaskRow } from '@/components/ui/TaskRow';
 import { StatusPicker } from '@/components/ui/Status';
+import { DeleteProjectModal } from '@/components/ui/DeleteProjectModal';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import type { Project, Task, Status } from '@/api/types';
@@ -13,6 +14,7 @@ export function ProjectDetailScreen({ id, onBack }: { id: string; onBack: () => 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [picker, setPicker] = useState<{ taskId: string; status: Status } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const { push } = useNav();
 
   const load = async () => {
@@ -59,7 +61,13 @@ export function ProjectDetailScreen({ id, onBack }: { id: string; onBack: () => 
           </div>
         </span>
         <span className="spacer" />
-        <button className="icon-btn" onClick={archive} aria-label="Archive"><Icon.Archive /></button>
+        <button className="icon-btn" onClick={archive} aria-label={project.archived ? 'Unarchive' : 'Archive'}><Icon.Archive /></button>
+        <button
+          className="icon-btn"
+          onClick={() => setConfirmDelete(true)}
+          aria-label="Delete project"
+          style={{ color: 'var(--pri-urgent)' }}
+        ><Icon.Trash /></button>
       </div>
       <div className="scroll">
         <div className="section">
@@ -106,6 +114,17 @@ export function ProjectDetailScreen({ id, onBack }: { id: string; onBack: () => 
             await api(`/tasks/${picker.taskId}/status`, { method: 'POST', body: { status: s } });
           }}
           onClose={() => setPicker(null)}
+        />
+      )}
+
+      {confirmDelete && (
+        <DeleteProjectModal
+          project={{ id: project.id, name: project.name }}
+          onClose={() => setConfirmDelete(false)}
+          onDeleted={() => {
+            setConfirmDelete(false);
+            onBack();
+          }}
         />
       )}
     </>

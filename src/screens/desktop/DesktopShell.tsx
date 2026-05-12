@@ -96,7 +96,7 @@ export function DesktopShell() {
   const renderCenter = () => {
     switch (view.kind) {
       case 'today':    return <DesktopToday onSelectTask={setSelectedTaskId} onSelectProject={(id) => setView({ kind: 'project', id })} />;
-      case 'project':  return <DesktopProjectDetail id={view.id} onSelectTask={setSelectedTaskId} />;
+      case 'project':  return <DesktopProjectDetail id={view.id} onSelectTask={setSelectedTaskId} onDeleted={() => setView({ kind: 'today' })} />;
       case 'calendar': return <DesktopCalendar />;
       case 'reports':  return <DesktopReports />;
       case 'history':  return <DesktopHistory onSelectTask={setSelectedTaskId} />;

@@ -5,9 +5,11 @@ const config: CapacitorConfig = {
   appName: 'Lapse',
   webDir: 'dist',
   server: {
-    // For `npx cap run ios --livereload --external`, point at the dev server.
-    // Set CAP_DEV=1 to enable hot-reload from the host.
-    androidScheme: 'https',
+    // Android origin = http://localhost (matches the existing CORS_ORIGINS
+    // entry on the API). Once the API allowlist also includes
+    // https://localhost we can switch this back to 'https' for parity with
+    // iOS. iOS always uses capacitor://localhost so it's unaffected.
+    androidScheme: 'http',
   },
   ios: {
     contentInset: 'always',
