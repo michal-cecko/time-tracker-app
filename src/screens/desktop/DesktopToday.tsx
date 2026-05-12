@@ -5,7 +5,7 @@ import { PriorityFlag } from '@/components/ui/PriorityFlag';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import type { Project, Task, WeeklyReport } from '@/api/types';
-import { fmtHM } from '@/utils/format';
+import { fmtHM, fmtDue } from '@/utils/format';
 
 interface Bucket { project: Project; task: Task; }
 
@@ -70,7 +70,7 @@ export function DesktopToday({ onSelectTask, onSelectProject }: { onSelectTask: 
         <span>{b.project.initials}</span>
       </button>
       {b.task.dueDate && (
-        <span className="dt-task-due">{new Date(b.task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+        <span className="dt-task-due">{fmtDue(new Date(b.task.dueDate))}</span>
       )}
       <span className="dt-task-time mono">{fmtHM(b.task.totalTime)}{b.task.totalEstimate ? ` / ${fmtHM(b.task.totalEstimate)}` : ''}</span>
       <button

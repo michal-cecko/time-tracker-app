@@ -4,7 +4,7 @@ import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import { useRunning } from '@/state/running';
 import type { Project, Task, TimeEntry } from '@/api/types';
-import { fmtHM, fmtHMS } from '@/utils/format';
+import { fmtHM, fmtHMS, fmtHoursShort, fmtInitials } from '@/utils/format';
 import { useAuth } from '@/auth/AuthContext';
 import { DesktopToday } from './DesktopToday';
 import { DesktopProjectDetail } from './DesktopProjectDetail';
@@ -91,7 +91,7 @@ export function DesktopShell() {
   const archived = projects.filter((p) => p.archived);
   const totalTracked = projects.reduce((s, p) => s + p.trackedSeconds, 0);
   const todayCount = active.reduce((s, p) => s + p.openTaskCount, 0);
-  const initial = (user?.name ?? user?.email ?? 'L').slice(0, 1).toUpperCase();
+  const initials = fmtInitials(user?.name ?? user?.email ?? 'Lapse');
 
   const renderCenter = () => {
     switch (view.kind) {
@@ -111,7 +111,7 @@ export function DesktopShell() {
           <span className="dt-light min" />
           <span className="dt-light max" />
         </div>
-        <span className="dt-title">Lapse — {user?.name ?? 'workspace'}</span>
+        <span className="dt-title">Lapse</span>
         <div className="dt-titlebar-right">
           <button className={`dt-timer-pill ${running ? 'running' : 'idle'}`} onClick={() => running && setSelectedTaskId(running.taskId)}>
             {running ? (
@@ -135,7 +135,7 @@ export function DesktopShell() {
           <button className="dt-cmd-btn" onClick={() => setPaletteOpen(true)}>
             <Icon.Search size={12} /><span>Jump to…</span><kbd>⌘K</kbd>
           </button>
-          <button className="dt-avatar" onClick={logout} title="Sign out">{initial}</button>
+          <button className="dt-avatar" onClick={logout} title="Sign out">{initials}</button>
         </div>
       </div>
 
@@ -168,7 +168,7 @@ export function DesktopShell() {
               >
                 <span className="dt-swatch" style={{ background: p.colorHex }} />
                 <span className="dt-truncate">{p.name}</span>
-                <span className="dt-rail-meta mono">{fmtHM(p.trackedSeconds)}</span>
+                <span className="dt-rail-meta mono">{fmtHoursShort(p.trackedSeconds)}</span>
               </button>
             ))}
           </div>
@@ -192,7 +192,7 @@ export function DesktopShell() {
                     >
                       <span className="dt-swatch" style={{ background: p.colorHex, opacity: 0.5 }} />
                       <span className="dt-truncate">{p.name}</span>
-                      <span className="dt-rail-meta mono">{fmtHM(p.trackedSeconds)}</span>
+                      <span className="dt-rail-meta mono">{fmtHoursShort(p.trackedSeconds)}</span>
                     </button>
                   ))}
                 </div>
