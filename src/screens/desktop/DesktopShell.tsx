@@ -3,7 +3,7 @@ import { Icon } from '@/components/ui/Icon';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import { useRunning } from '@/state/running';
-import type { Project, Task } from '@/api/types';
+import type { Project } from '@/api/types';
 import { fmtHM, fmtHMS } from '@/utils/format';
 import { useAuth } from '@/auth/AuthContext';
 import { DesktopToday } from './DesktopToday';
@@ -37,14 +37,12 @@ export function DesktopShell() {
     return () => offs.forEach((o) => o());
   }, []);
 
-  // Tick the running timer pill
   useEffect(() => {
     if (!running) return;
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [running, tick]);
 
-  // ⌘K
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -59,6 +57,8 @@ export function DesktopShell() {
 
   const active = projects.filter((p) => !p.archived);
   const archived = projects.filter((p) => p.archived);
+  const totalTracked = projects.reduce((s, p) => s + p.trackedSeconds, 0);
+  const initial = (user?.name ?? user?.email ?? 'L').slice(0, 1).toUpperCase();
 
   const renderCenter = () => {
     switch (view.kind) {
@@ -71,21 +71,26 @@ export function DesktopShell() {
   };
 
   return (
-    <div className="dt-shell">
+    <div className="dt-shell app">
       <div className="dt-titlebar">
         <div className="dt-lights">
           <span className="dt-light close" />
           <span className="dt-light min" />
           <span className="dt-light max" />
         </div>
-        <span className="dt-title">Lapse — {user?.name}'s workspace</span>
+        <span className="dt-title">Lapse — {user?.name ?? 'workspace'}</span>
         <div className="dt-titlebar-right">
-          <button className={`dt-timer-pill ${running ? 'running' : 'idle'}`}>
+          <button className={`dt-timer-pill ${running ? 'running' : 'idle'}`} onClick={() => running && setSelectedTaskId(running.taskId)}>
             {running ? (
               <>
                 <span className="dt-tp-live" />
-                <span className="mono dt-tp-time">{fmtHMS(elapsed)}</span>
-                <span className="dt-tp-stop" onClick={async (e) => { e.stopPropagation(); await api('/time-entries/stop', { method: 'POST' }); }}>
+                <span className="dt-tp-time">{fmtHMS(elapsed)}</span>
+                <span
+                  className="dt-tp-stop"
+                  onClick={async (e) => { e.stopPropagation(); await api('/time-entries/stop', { method: 'POST' }); }}
+                  role="button"
+                  aria-label="Stop timer"
+                >
                   <Icon.Stop size={11} />
                 </span>
               </>
@@ -94,67 +99,89 @@ export function DesktopShell() {
           <button className="dt-cmd-btn" onClick={() => setPaletteOpen(true)}>
             <Icon.Search size={12} /><span>Jump to…</span><kbd>⌘K</kbd>
           </button>
-          <button className="dt-avatar" onClick={logout} title="Sign out">{user?.avatarSeed}</button>
+          <button className="dt-avatar" onClick={logout} title="Sign out">{initial}</button>
         </div>
       </div>
 
       <div className="dt-body">
         <aside className="dt-rail">
-          <NavBtn label="Today"    icon={<Icon.Home size={14} />}     active={view.kind === 'today'}    onClick={() => setView({ kind: 'today' })} />
-          <NavBtn label="Calendar" icon={<Icon.Calendar size={14} />} active={view.kind === 'calendar'} onClick={() => setView({ kind: 'calendar' })} />
-          <NavBtn label="Reports"  icon={<Icon.Chart size={14} />}    active={view.kind === 'reports'}  onClick={() => setView({ kind: 'reports' })} />
-          <NavBtn label="History"  icon={<Icon.History size={14} />}  active={view.kind === 'history'}  onClick={() => setView({ kind: 'history' })} />
-
-          <div className="dt-rail-head" style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>Projects</span>
-            <button onClick={async () => {
-              const name = prompt('Project name'); if (!name) return;
-              await api('/projects', { method: 'POST', body: { name, initials: name.slice(0, 2).toUpperCase(), colorHex: '#ff7a45' } });
-            }} aria-label="Add project" className="icon-btn" style={{ width: 22, height: 22, borderRadius: 6 }}><Icon.Plus size={11} /></button>
+          <div className="dt-rail-section">
+            <RailNav label="Today"    icon={<Icon.Home size={14} />}     active={view.kind === 'today'}    onClick={() => setView({ kind: 'today' })} />
+            <RailNav label="Calendar" icon={<Icon.Calendar size={14} />} active={view.kind === 'calendar'} onClick={() => setView({ kind: 'calendar' })} />
+            <RailNav label="Reports"  icon={<Icon.Chart size={14} />}    active={view.kind === 'reports'}  onClick={() => setView({ kind: 'reports' })} />
+            <RailNav label="History"  icon={<Icon.History size={14} />}  active={view.kind === 'history'}  onClick={() => setView({ kind: 'history' })} />
           </div>
-          {active.map((p) => (
-            <button key={p.id} className={`dt-proj ${view.kind === 'project' && view.id === p.id ? 'active' : ''}`} onClick={() => setView({ kind: 'project', id: p.id })}>
-              <span className="dt-proj-swatch" style={{ background: p.colorHex }} />
-              <span className="dt-proj-name">{p.name}</span>
-              <span className="mono dt-proj-time">{fmtHM(p.trackedSeconds)}</span>
-            </button>
-          ))}
+
+          <div className="dt-rail-head">
+            <span>Projects</span>
+            <button
+              className="dt-ghost"
+              aria-label="Add project"
+              onClick={async () => {
+                const name = prompt('Project name'); if (!name) return;
+                await api('/projects', { method: 'POST', body: { name, initials: name.slice(0, 2).toUpperCase(), colorHex: '#ff7a45' } });
+              }}
+            ><Icon.Plus size={12} /></button>
+          </div>
+          <div className="dt-rail-section">
+            {active.map((p) => (
+              <button
+                key={p.id}
+                className={`dt-rail-item ${view.kind === 'project' && view.id === p.id ? 'active' : ''}`}
+                onClick={() => setView({ kind: 'project', id: p.id })}
+              >
+                <span className="dt-swatch" style={{ background: p.colorHex }} />
+                <span className="dt-truncate">{p.name}</span>
+                <span className="dt-rail-meta mono">{fmtHM(p.trackedSeconds)}</span>
+              </button>
+            ))}
+          </div>
 
           {archived.length > 0 && (
             <>
-              <button className="dt-rail-head" onClick={() => setShowArchived((v) => !v)} style={{ background: 'transparent', border: 0, color: 'var(--text-4)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                {showArchived ? <Icon.ChevronDown size={10} /> : <Icon.ChevronRight size={10} />}
-                Archived · {archived.length}
+              <button className="dt-rail-head" onClick={() => setShowArchived((v) => !v)} style={{ width: '100%', cursor: 'pointer' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  {showArchived ? <Icon.ChevronDown size={10} /> : <Icon.ChevronRight size={10} />}
+                  Archived
+                </span>
+                <span>{archived.length}</span>
               </button>
-              {showArchived && archived.map((p) => (
-                <button key={p.id} className="dt-proj" style={{ opacity: 0.6 }} onClick={() => setView({ kind: 'project', id: p.id })}>
-                  <span className="dt-proj-swatch" style={{ background: p.colorHex, opacity: 0.6 }} />
-                  <span className="dt-proj-name">{p.name}</span>
-                  <span className="mono dt-proj-time">{fmtHM(p.trackedSeconds)}</span>
-                </button>
-              ))}
+              {showArchived && (
+                <div className="dt-rail-section">
+                  {archived.map((p) => (
+                    <button
+                      key={p.id}
+                      className="dt-rail-item archived"
+                      onClick={() => setView({ kind: 'project', id: p.id })}
+                    >
+                      <span className="dt-swatch" style={{ background: p.colorHex, opacity: 0.5 }} />
+                      <span className="dt-truncate">{p.name}</span>
+                      <span className="dt-rail-meta mono">{fmtHM(p.trackedSeconds)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </aside>
 
-        <main className="dt-center" style={{ overflowY: 'auto' }}>
-          <div className="dt-center-inner" style={{ maxWidth: 920, margin: '0 auto', padding: '24px 32px 60px' }}>
+        <main className="dt-center">
+          <div className="dt-page">
             {renderCenter()}
           </div>
         </main>
 
-        <aside className="dt-inspector" style={{ overflowY: 'auto' }}>
+        <aside className={`dt-inspector ${selectedTaskId ? '' : 'empty'}`}>
           <Inspector taskId={selectedTaskId} onClear={() => setSelectedTaskId(null)} />
         </aside>
       </div>
 
-      <div className="dt-statusbar" style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: 11, color: 'var(--text-3)', borderTop: '1px solid var(--border)', gap: 12 }}>
-        <span className="hstack" style={{ gap: 6 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--st-done)' }} /> Synced
-        </span>
+      <div className="dt-statusbar">
+        <span><span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--st-done)' }} /> Synced</span>
+        <span className="dt-sep" />
         <span style={{ flex: 1 }} />
-        <span className="mono">{fmtHM(active.reduce((s, p) => s + p.trackedSeconds, 0))}</span>
-        <span>·</span>
+        <span className="mono">{fmtHM(totalTracked)} tracked</span>
+        <span className="dt-sep" />
         <span>v0.1.0 · {user?.email}</span>
       </div>
 
@@ -169,15 +196,10 @@ export function DesktopShell() {
   );
 }
 
-function NavBtn({ label, icon, active, onClick }: { label: string; icon: React.ReactNode; active?: boolean; onClick: () => void }) {
+function RailNav({ label, icon, active, onClick }: { label: string; icon: React.ReactNode; active?: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} style={{
-      display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-      borderRadius: 8, background: active ? 'var(--bg-elev)' : 'transparent',
-      color: active ? 'var(--text)' : 'var(--text-2)',
-      fontSize: 13, fontWeight: 500, width: '100%', textAlign: 'left',
-    }}>
-      {icon}<span>{label}</span>
+    <button className={`dt-rail-item ${active ? 'active' : ''}`} onClick={onClick}>
+      {icon}<span className="dt-truncate">{label}</span>
     </button>
   );
 }

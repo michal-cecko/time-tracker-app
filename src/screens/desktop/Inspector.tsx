@@ -35,9 +35,9 @@ export function Inspector({ taskId, onClear }: { taskId: string | null; onClear:
 
   if (!task) {
     return (
-      <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)' }}>
-        <Icon.Folder size={32} />
-        <div style={{ marginTop: 12, fontSize: 13 }}>Select a task</div>
+      <div className="dt-empty">
+        <Icon.Folder size={28} />
+        <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--text-3)' }}>Select a task</div>
       </div>
     );
   }

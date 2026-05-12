@@ -38,80 +38,116 @@ export function DesktopToday({ onSelectTask, onSelectProject }: { onSelectTask: 
   }, []);
 
   const now = new Date();
-  const sub = `${now.toLocaleDateString([], { weekday: 'long' })} · ${now.toLocaleDateString([], { month: 'short', day: 'numeric' })}${weekly ? ` · ${fmtHM(weekly.days.find((d) => d.date === now.toISOString().slice(0, 10))?.total ?? 0)} tracked` : ''}`;
+  const todayKey = now.toISOString().slice(0, 10);
+  const todayTracked = weekly?.days.find((d) => d.date === todayKey)?.total ?? 0;
+  const sub = `${now.toLocaleDateString([], { weekday: 'long' })} · ${now.toLocaleDateString([], { month: 'short', day: 'numeric' })} · ${fmtHM(todayTracked)} tracked`;
 
   const Row = ({ b }: { b: Bucket }) => (
-    <div className="task" onClick={() => onSelectTask(b.task.id)} style={{ cursor: 'pointer' }}>
-      <StatusDot status={b.task.status} />
-      <div className="grow">
-        <div className="title-line">{b.task.title} <PriorityFlag urgent={b.task.urgent} /></div>
-        <div className="meta">
-          <span className="hstack" style={{ gap: 4 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: b.project.colorHex }} /> {b.project.name}
-          </span>
-          {b.task.dueDate && <><span className="sep" /><span>{new Date(b.task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span></>}
-        </div>
-      </div>
-      <span className="mono" style={{ fontSize: 12 }}>{fmtHM(b.task.totalTime)}{b.task.totalEstimate ? ` / ${fmtHM(b.task.totalEstimate)}` : ''}</span>
-      <button className="icon-btn" onClick={async (e) => { e.stopPropagation(); await api('/time-entries/start', { method: 'POST', body: { taskId: b.task.id } }); }} aria-label="Play">
-        {b.task.running ? <Icon.Pause size={14} /> : <Icon.Play size={14} />}
+    <div className={`dt-task ${b.task.running ? 'running' : ''}`} onClick={() => onSelectTask(b.task.id)}>
+      <button
+        className="dt-task-status"
+        aria-label="Change status"
+        onClick={(e) => { e.stopPropagation(); }}
+      >
+        <StatusDot status={b.task.status} />
+      </button>
+      <span className="dt-task-title">
+        {b.task.title}
+        <PriorityFlag urgent={b.task.urgent} />
+      </span>
+      <button
+        className="dt-task-proj"
+        onClick={(e) => { e.stopPropagation(); onSelectProject(b.project.id); }}
+      >
+        <span className="dt-swatch" style={{ background: b.project.colorHex }} />
+        <span>{b.project.initials}</span>
+      </button>
+      {b.task.dueDate && (
+        <span className="dt-task-due">{new Date(b.task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+      )}
+      <span className="dt-task-time mono">{fmtHM(b.task.totalTime)}{b.task.totalEstimate ? ` / ${fmtHM(b.task.totalEstimate)}` : ''}</span>
+      <button
+        className={`dt-task-play ${b.task.running ? 'running' : ''}`}
+        aria-label={b.task.running ? 'Pause' : 'Play'}
+        onClick={async (e) => {
+          e.stopPropagation();
+          if (b.task.running) await api('/time-entries/stop', { method: 'POST' });
+          else await api('/time-entries/start', { method: 'POST', body: { taskId: b.task.id } });
+        }}
+      >
+        {b.task.running ? <Icon.Pause size={12} /> : <Icon.Play size={12} />}
       </button>
     </div>
   );
 
   return (
     <>
-      <div className="hstack" style={{ marginBottom: 16, alignItems: 'flex-end' }}>
+      <div className="dt-page-head">
         <div>
-          <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em' }}>Today</div>
-          <div style={{ fontSize: 12.5, color: 'var(--text-3)' }}>{sub}</div>
+          <div className="dt-page-title">Today</div>
+          <div className="dt-page-sub">{sub}</div>
         </div>
-        <span className="spacer" />
-        <button className="btn"><Icon.Filter size={14} />Filter</button>
-        <button className="btn primary"><Icon.Plus size={14} />New task</button>
+        <div className="dt-page-actions">
+          <button className="dt-btn"><Icon.Filter size={12} /> Filter</button>
+          <button className="dt-btn primary"><Icon.Plus size={12} /> New task</button>
+        </div>
       </div>
 
       {urgent.length > 0 && (
-        <div className="section" style={{ padding: 0, marginTop: 0, marginBottom: 20 }}>
-          <div className="section-head" style={{ padding: '0 0 10px' }}>
-            <span style={{ color: 'var(--pri-urgent)' }}>Up next · priority</span>
-            <span className="count">{urgent.length}</span>
+        <div className="dt-section">
+          <div className="dt-section-head">
+            <span className="dt-col-title accent">Up next · priority</span>
+            <span className="dt-col-count">{urgent.length}</span>
           </div>
-          <div className="card">{urgent.map((b) => <Row key={b.task.id} b={b} />)}</div>
+          <div className="dt-col-body">{urgent.map((b) => <Row key={b.task.id} b={b} />)}</div>
         </div>
       )}
 
       {also.length > 0 && (
-        <div className="section" style={{ padding: 0, marginTop: 0, marginBottom: 28 }}>
-          <div className="section-head" style={{ padding: '0 0 10px' }}>
-            <span>Also today</span><span className="count">{also.length}</span>
+        <div className="dt-section">
+          <div className="dt-section-head">
+            <span className="dt-col-title">Also today</span>
+            <span className="dt-col-count">{also.length}</span>
           </div>
-          <div className="card">{also.map((b) => <Row key={b.task.id} b={b} />)}</div>
+          <div className="dt-col-body">{also.map((b) => <Row key={b.task.id} b={b} />)}</div>
         </div>
       )}
 
-      {weekly && (
-        <div className="section" style={{ padding: 0, marginTop: 0 }}>
-          <div className="section-head" style={{ padding: '0 0 10px' }}>
-            <span>Last 7 days</span><span className="count mono">{fmtHM(weekly.total)}</span>
-          </div>
-          <div className="card" style={{ padding: '28px 16px 14px' }}>
-            <div className="bars">
-              {weekly.days.map((d) => {
-                const max = Math.max(...weekly.days.map((x) => x.total), 1);
-                const today = d.date === new Date().toISOString().slice(0, 10);
-                return (
-                  <div key={d.date} className={`bar ${today ? 'today' : ''}`}>
-                    <div className="total mono">{d.total ? fmtHM(d.total) : ''}</div>
-                    <div className="seg" style={{ height: `${Math.max(2, (d.total / max) * 100)}%`, background: today ? 'var(--accent)' : 'var(--text-4)' }} />
-                    <div className="day">{new Date(d.date + 'T00:00').toLocaleDateString([], { weekday: 'short' }).slice(0, 3)}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
+      {weekly && <WeekChart weekly={weekly} />}
     </>
+  );
+}
+
+function WeekChart({ weekly }: { weekly: WeeklyReport }) {
+  const max = Math.max(...weekly.days.map((d) => d.total), 1);
+  const today = new Date().toISOString().slice(0, 10);
+  return (
+    <div className="dt-section">
+      <div className="dt-section-head">
+        <span className="dt-col-title">Last 7 days</span>
+        <span className="dt-col-count mono">{fmtHM(weekly.total)}</span>
+      </div>
+      <div className="dt-week-chart">
+        {weekly.days.map((d) => {
+          const isToday = d.date === today;
+          const heightPct = Math.max(2, (d.total / max) * 100);
+          return (
+            <div key={d.date} className={`dt-wc-col ${isToday ? 'today' : ''}`}>
+              <div className="dt-wc-total mono">{d.total ? fmtHM(d.total) : ''}</div>
+              <div className="dt-wc-bar-wrap">
+                <div
+                  className="dt-wc-bar"
+                  style={{
+                    height: `${heightPct}%`,
+                    background: isToday ? 'var(--accent)' : 'color-mix(in oklab, var(--text-4) 60%, transparent)',
+                  }}
+                />
+              </div>
+              <div className="dt-wc-day">{new Date(d.date + 'T00:00').toLocaleDateString([], { weekday: 'short' })}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

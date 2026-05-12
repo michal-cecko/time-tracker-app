@@ -22,6 +22,10 @@ export function connectRealtime() {
   if (!token) return;
   socket?.disconnect();
   socket = io(`${WS_URL}/realtime`, {
+    // Server (LapseIoAdapter) serves the Socket.IO transport at this path,
+    // which sits under the `/realtime` Traefik PathPrefix so the upgrade
+    // request hits the API container instead of the SPA nginx.
+    path: '/realtime/socket.io/',
     transports: ['websocket'],
     auth: { token },
     reconnection: true,
