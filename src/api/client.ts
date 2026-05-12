@@ -56,15 +56,41 @@ export class ApiError extends Error {
   }
 }
 
+// Surfaced to callers so screens can show "offline" state instead of erroring.
+export class OfflineError extends Error {
+  constructor(message = 'Offline') {
+    super(message);
+    this.name = 'OfflineError';
+  }
+}
+
+export function isOffline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
 interface RequestOpts {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: any;
   auth?: boolean; // default true
   signal?: AbortSignal;
+  timeoutMs?: number; // default 12000
 }
 
 export async function api<T = any>(path: string, opts: RequestOpts = {}): Promise<T> {
-  const { method = 'GET', body, auth = true, signal } = opts;
+  const { method = 'GET', body, auth = true, signal, timeoutMs = 12_000 } = opts;
+
+  // Offline path: for GETs, serve the persisted cache so screens render with
+  // last-known data instead of hanging or throwing. Mutations still throw an
+  // OfflineError so callers can route them to the sync queue.
+  if (isOffline()) {
+    if (method === 'GET' && !path.startsWith('/auth/')) {
+      const { readCache } = await import('./cache');
+      const hit = await readCache<T>(path);
+      if (hit !== undefined) return hit;
+    }
+    throw new OfflineError();
+  }
+
   const headers: Record<string, string> = { accept: 'application/json' };
   if (body !== undefined) headers['content-type'] = 'application/json';
 
@@ -75,27 +101,53 @@ export async function api<T = any>(path: string, opts: RequestOpts = {}): Promis
   };
   await attach();
 
+  // Belt-and-braces timeout — even when navigator.onLine is true the WebView
+  // can sit on a half-open socket for minutes. Cap every request.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  if (signal) signal.addEventListener('abort', () => ctrl.abort(), { once: true });
+
   const doFetch = () =>
     fetch(`${API_BASE}${path}`, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal,
+      signal: ctrl.signal,
     });
 
-  let res = await doFetch();
+  let res: Response;
+  try {
+    res = await doFetch();
+  } catch (e: any) {
+    clearTimeout(timer);
+    // Network died mid-request (DNS, TLS, Wi-Fi drop). For GETs, fall back to
+    // the persisted cache so the screen still has something to render.
+    if (method === 'GET' && !path.startsWith('/auth/')) {
+      const { readCache } = await import('./cache');
+      const hit = await readCache<T>(path);
+      if (hit !== undefined) return hit;
+    }
+    if (e?.name === 'AbortError') throw new OfflineError('Request timed out');
+    throw new OfflineError(e?.message ?? 'Network unreachable');
+  }
   if (res.status === 401 && auth) {
     // Single-flight refresh
     if (!refreshPromise) refreshPromise = rotateRefresh().finally(() => { refreshPromise = null; });
     const newAccess = await refreshPromise;
     if (newAccess) {
       headers['authorization'] = `Bearer ${newAccess}`;
-      res = await doFetch();
+      try { res = await doFetch(); } catch (e: any) {
+        clearTimeout(timer);
+        throw new OfflineError(e?.message ?? 'Network unreachable');
+      }
     } else {
+      clearTimeout(timer);
       onAuthFailed();
       throw new ApiError(401, 'Unauthenticated', null);
     }
   }
+
+  clearTimeout(timer);
 
   if (res.status === 204) return undefined as T;
   const text = await res.text();
@@ -105,6 +157,15 @@ export async function api<T = any>(path: string, opts: RequestOpts = {}): Promis
     const msg = typeof json === 'object' && json && 'error' in json ? json.error : res.statusText;
     throw new ApiError(res.status, String(msg ?? 'Request failed'), json);
   }
+
+  // Write-through cache for GETs so screens that still use the bare api()
+  // contract benefit from offline reads via useCachedApi or peekCache.
+  if (method === 'GET' && !path.startsWith('/auth/')) {
+    // Lazy import to avoid a cycle (cache → db → … unrelated). The await
+    // doesn't block — fire and forget; failure is non-fatal.
+    import('./cache').then(({ writeCache }) => { writeCache(path, json); }).catch(() => {});
+  }
+
   return json as T;
 }
 

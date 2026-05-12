@@ -14,8 +14,16 @@ import './styles/tokens.css';
 import './styles/desktop.css';
 import './styles/base.css';
 import { startDrainLoop } from './offline/sync';
+import { OfflineError } from './api/client';
 
 startDrainLoop();
+
+// Swallow OfflineError noise — screens are designed to render with their last
+// known data when offline, so a failed GET behind the scenes shouldn't spam
+// the console or trip an error overlay.
+window.addEventListener('unhandledrejection', (e) => {
+  if (e.reason instanceof OfflineError) e.preventDefault();
+});
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

@@ -213,7 +213,7 @@ export function DesktopShell() {
       </div>
 
       <div className="dt-statusbar">
-        <span><span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--st-done)' }} /> Synced</span>
+        <OnlineIndicator />
         <span className="dt-sep" />
         <span style={{ flex: 1 }} />
         <span className="mono">{fmtHM(totalTracked)} tracked</span>
@@ -238,5 +238,28 @@ function RailNav({ label, icon, active, onClick, badge }: { label: string; icon:
       {icon}<span className="dt-truncate">{label}</span>
       {badge != null && badge > 0 && <span className="dt-badge">{badge}</span>}
     </button>
+  );
+}
+
+function OnlineIndicator() {
+  const [online, setOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  useEffect(() => {
+    const up = () => setOnline(true);
+    const down = () => setOnline(false);
+    window.addEventListener('online', up);
+    window.addEventListener('offline', down);
+    return () => {
+      window.removeEventListener('online', up);
+      window.removeEventListener('offline', down);
+    };
+  }, []);
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <span style={{
+        width: 6, height: 6, borderRadius: '50%',
+        background: online ? 'var(--st-done)' : 'var(--st-return)',
+      }} />
+      {online ? 'Synced' : 'Offline'}
+    </span>
   );
 }
