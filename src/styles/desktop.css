@@ -25,6 +25,9 @@ body {
   -webkit-app-region: drag;
   user-select: none;
 }
+/* Tauri/macOS: leave room for the native traffic lights at top-left,
+   the React-drawn .dt-lights are hidden in this mode. */
+.dt-shell.tauri .dt-titlebar { padding-left: 82px; }
 .dt-lights { display: flex; gap: 8px; }
 .dt-light {
   width: 12px; height: 12px; border-radius: 50%;

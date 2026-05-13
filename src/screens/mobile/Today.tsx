@@ -6,6 +6,7 @@ import { PriorityFlag } from '@/components/ui/PriorityFlag';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 import { api } from '@/api/client';
+import { entries as entriesApi } from '@/api/mutations';
 import { onRealtime } from '@/api/websocket';
 import type { Project, Task, TimeEntry, WeeklyReport } from '@/api/types';
 import { fmtHM, fmtHMS, fmtRelative } from '@/utils/format';
@@ -99,10 +100,10 @@ export function TodayScreen() {
   const sub = `${today.toLocaleDateString([], { weekday: 'long' })} · ${today.toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
 
   const stopTimer = async () => {
-    try { await api('/time-entries/stop', { method: 'POST' }); } finally { setRunning(null); }
+    try { await entriesApi.stopTimer(); } finally { setRunning(null); }
   };
   const playTask = async (taskId: string) => {
-    await api('/time-entries/start', { method: 'POST', body: { taskId } });
+    await entriesApi.startTimer(taskId);
   };
 
   return (
@@ -215,26 +216,19 @@ function TaskListRow({
   onPlay: (id: string) => void;
   showFlag?: boolean;
 }) {
-  const nested = (t.ancestors?.length ?? 0) > 0;
   return (
     <div className="task" onClick={() => onOpenTask(t.id)} style={{ cursor: 'pointer' }}>
       <StatusDot status={t.status} />
       <div className="grow" style={{ minWidth: 0 }}>
-        {nested ? (
-          <>
-            <div className="meta" style={{ marginBottom: 2 }}>
-              <Breadcrumbs
-                project={{ id: project.id, name: project.name, colorHex: project.colorHex }}
-                ancestors={t.ancestors}
-                onProject={onOpenProject}
-                onTask={onOpenTask}
-              />
-            </div>
-            <div className="title-line">{t.title} {showFlag && <PriorityFlag urgent={t.urgent} />}</div>
-          </>
-        ) : (
-          <div className="title-line">{t.title} {showFlag && <PriorityFlag urgent={t.urgent} />}</div>
-        )}
+        <div className="meta" style={{ marginBottom: 2 }}>
+          <Breadcrumbs
+            project={{ id: project.id, name: project.name, colorHex: project.colorHex }}
+            ancestors={t.ancestors}
+            onProject={onOpenProject}
+            onTask={onOpenTask}
+          />
+        </div>
+        <div className="title-line">{t.title} {showFlag && <PriorityFlag urgent={t.urgent} />}</div>
         <div className="meta"><span className="mono">{fmtHM(t.totalTime)}{t.totalEstimate ? ` / ${fmtHM(t.totalEstimate)}` : ''}</span></div>
       </div>
       <button className="icon-btn" onClick={(e) => { e.stopPropagation(); onPlay(t.id); }} aria-label="Play">

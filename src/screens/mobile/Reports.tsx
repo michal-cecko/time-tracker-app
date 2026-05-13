@@ -97,12 +97,11 @@ export function ReportsScreen() {
           <div className="section-head"><span>Recent sessions</span><span className="count">{recent.length}</span></div>
           <div className="card">
             {recent.map((e) => {
-              const nested = (e.task?.ancestors?.length ?? 0) > 0;
               return (
                 <div key={e.id} className="task" style={{ minHeight: 48 }} onClick={() => push({ kind: 'task', id: e.taskId })}>
                   {!e.endedAt && <span className="pulse" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />}
                   <div className="grow" style={{ minWidth: 0 }}>
-                    {nested && e.task?.project ? (
+                    {e.task?.project ? (
                       <>
                         <div className="meta" style={{ marginBottom: 2 }}>
                           <Breadcrumbs
@@ -115,15 +114,7 @@ export function ReportsScreen() {
                         <div className="title-line">{e.task.title}</div>
                       </>
                     ) : (
-                      <>
-                        <div className="title-line">{e.task?.title ?? 'Entry'}</div>
-                        {e.task?.project && (
-                          <div className="meta">
-                            <span style={{ width: 8, height: 8, borderRadius: 2, background: e.task.project.colorHex }} />
-                            <span>{e.task.project.name}</span>
-                          </div>
-                        )}
-                      </>
+                      <div className="title-line">{e.task?.title ?? 'Entry'}</div>
                     )}
                     <div className="meta">
                       <span className="mono">{new Date(e.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })} – {e.endedAt ? new Date(e.endedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : 'now'}</span>

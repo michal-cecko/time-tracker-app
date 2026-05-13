@@ -74,10 +74,11 @@ interface RequestOpts {
   auth?: boolean; // default true
   signal?: AbortSignal;
   timeoutMs?: number; // default 12000
+  headers?: Record<string, string>; // extra request headers (e.g. Idempotency-Key)
 }
 
 export async function api<T = any>(path: string, opts: RequestOpts = {}): Promise<T> {
-  const { method = 'GET', body, auth = true, signal, timeoutMs = 12_000 } = opts;
+  const { method = 'GET', body, auth = true, signal, timeoutMs = 12_000, headers: extraHeaders } = opts;
 
   // Offline path: for GETs, serve the persisted cache so screens render with
   // last-known data instead of hanging or throwing. Mutations still throw an
@@ -93,6 +94,7 @@ export async function api<T = any>(path: string, opts: RequestOpts = {}): Promis
 
   const headers: Record<string, string> = { accept: 'application/json' };
   if (body !== undefined) headers['content-type'] = 'application/json';
+  if (extraHeaders) Object.assign(headers, extraHeaders);
 
   const attach = async () => {
     if (!auth) return;

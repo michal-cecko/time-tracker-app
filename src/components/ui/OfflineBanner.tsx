@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Icon } from './Icon';
+import { onOutboxChange, pendingCount } from '@/offline/sync';
 
 // Persistent top banner shown across every screen while the device is
-// offline. Sits above the app header (or desktop title bar) so the user
-// always knows the app is serving cached data and mutations are paused.
+// offline OR there are queued mutations awaiting replay. Sits above the
+// app header (or desktop title bar) so the user always knows the app is
+// serving cached data and mutations are queued.
 export function OfflineBanner() {
   const [online, setOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [queued, setQueued] = useState(0);
 
   useEffect(() => {
     const up = () => setOnline(true);
@@ -18,7 +21,24 @@ export function OfflineBanner() {
     };
   }, []);
 
-  if (online) return null;
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = async () => {
+      const n = await pendingCount();
+      if (!cancelled) setQueued(n);
+    };
+    refresh();
+    const off = onOutboxChange(() => { void refresh(); });
+    return () => { cancelled = true; off(); };
+  }, []);
+
+  if (online && queued === 0) return null;
+
+  const label = !online
+    ? (queued > 0
+        ? `Offline — ${queued} change${queued === 1 ? '' : 's'} waiting to sync`
+        : `Offline — changes will sync when you're back online`)
+    : `Syncing ${queued} change${queued === 1 ? '' : 's'}…`;
 
   return (
     <div
@@ -34,7 +54,9 @@ export function OfflineBanner() {
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        background: 'color-mix(in oklab, var(--st-return) 80%, transparent)',
+        background: online
+          ? 'color-mix(in oklab, var(--accent) 80%, transparent)'
+          : 'color-mix(in oklab, var(--st-return) 80%, transparent)',
         color: '#fff',
         fontSize: 12,
         fontWeight: 500,
@@ -43,7 +65,7 @@ export function OfflineBanner() {
       }}
     >
       <Icon.CloudOff size={13} />
-      <span>Offline — changes will sync when you're back online</span>
+      <span>{label}</span>
     </div>
   );
 }

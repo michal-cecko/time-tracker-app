@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ThemeProvider } from '@/components/ui/ThemeProvider';
 import { OfflineBanner } from '@/components/ui/OfflineBanner';
+import { UpdatePrompt } from '@/components/ui/UpdatePrompt';
+import { startDrainLoop } from '@/offline/sync';
 import { isNative, isDesktopViewport } from '@/utils/platform';
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
 import { AuthRouter } from '@/auth/AuthRouter';
@@ -53,10 +55,12 @@ function Routed() {
 }
 
 export default function App() {
+  useEffect(() => { startDrainLoop(); }, []);
   return (
     <ThemeProvider>
       <AuthProvider>
         <OfflineBanner />
+        <UpdatePrompt />
         <Routed />
       </AuthProvider>
     </ThemeProvider>

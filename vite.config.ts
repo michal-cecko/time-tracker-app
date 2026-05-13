@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
+import { VitePWA } from 'vite-plugin-pwa';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 
@@ -26,7 +27,48 @@ const version   = `0.${count}.0${dirty}-${sha}`;
 const buildTime = new Date().toISOString();
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'prompt',
+      injectRegister: 'auto',
+      includeAssets: ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png'],
+      manifest: {
+        name: 'Lapse',
+        short_name: 'Lapse',
+        description: 'Time tracker for projects and tasks.',
+        theme_color: '#100f0d',
+        background_color: '#100f0d',
+        display: 'standalone',
+        start_url: '/',
+        scope: '/',
+        icons: [
+          { src: '/web-app-manifest-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable any' },
+          { src: '/web-app-manifest-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable any' },
+        ],
+      },
+      workbox: {
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//, /^\/realtime/],
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2,woff,webmanifest}'],
+        runtimeCaching: [
+          {
+            // GETs against the API — network-first so we always prefer fresh data,
+            // but the last successful response stays available offline.
+            urlPattern: ({ url, request }) => url.pathname.startsWith('/api/') && request.method === 'GET',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'lapse-api',
+              networkTimeoutSeconds: 4,
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
+      },
+      devOptions: { enabled: false },
+    }),
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

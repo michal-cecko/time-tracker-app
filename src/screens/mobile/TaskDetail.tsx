@@ -78,13 +78,13 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
     // arriving later will reconcile.
     if (isRunning) {
       setRunning(null);
-      try { await api('/time-entries/stop', { method: 'POST' }); } catch { /* offline → optimistic state stays */ }
+      try { await entriesApi.stopTimer(); } catch { /* offline → optimistic state stays */ }
     } else {
       const optimisticStartedAt = new Date().toISOString();
       setRunning({ entryId: 'pending', taskId: task.id, taskTitle: task.title, startedAt: optimisticStartedAt });
       try {
-        const entry = await api<TimeEntry>('/time-entries/start', { method: 'POST', body: { taskId: task.id } });
-        setRunning({ entryId: entry.id, taskId: entry.taskId, taskTitle: task.title, startedAt: entry.startedAt });
+        const entry = await entriesApi.startTimer(task.id);
+        if (entry) setRunning({ entryId: entry.id, taskId: entry.taskId, taskTitle: task.title, startedAt: entry.startedAt });
       } catch { /* keep optimistic state for offline */ }
     }
   };

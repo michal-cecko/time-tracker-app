@@ -1,10 +1,17 @@
 // Mutations facade — wraps the raw REST calls so callers don't sprinkle
 // fetch paths through the codebase. Names mirror the prototype's mutations.jsx.
-// Each function returns the freshly-saved record (or void for deletes) and
-// invalidates the relevant cache keys so any subscribed useCachedApi hooks
-// pick up the change on next render.
+//
+// All writes go through `mutate()` which:
+//   1. Generates a stable Idempotency-Key.
+//   2. Tries the live request first.
+//   3. On OfflineError, queues the mutation in the Dexie outbox for replay.
+//
+// When queued offline, the returned value is the optimistic shape (when one
+// is provided) so the UI can render immediately. The server response replaces
+// it on reconnect via WS events and a fresh GET.
 
 import { api } from './client';
+import { mutate } from './mutate';
 import { clearCache } from './cache';
 import type {
   BillingMode, Project, Status, Task, TimeEntry,
@@ -26,71 +33,66 @@ export const tasks = {
     projectId: string;
     position: number;
   }>) => {
-    const t = await api<Task>(`/tasks/${id}`, { method: 'PATCH', body: patch });
+    const r = await mutate<Task>({ method: 'PATCH', path: `/tasks/${id}`, body: patch });
     await invalidateTaskCaches();
-    return t;
+    return r.data;
   },
 
   remove: async (id: string) => {
-    await api<void>(`/tasks/${id}`, { method: 'DELETE' });
+    await mutate<void>({ method: 'DELETE', path: `/tasks/${id}` });
     await invalidateTaskCaches();
   },
 
   setStatus: async (id: string, status: Status) => {
-    const t = await api<Task>(`/tasks/${id}/status`, { method: 'POST', body: { status } });
+    const r = await mutate<Task>({ method: 'POST', path: `/tasks/${id}/status`, body: { status } });
     await invalidateTaskCaches();
-    return t;
+    return r.data;
   },
 
-  // Move under a project (top-level) OR under another task. Backend cascades
-  // descendants' projectId for cross-project moves.
   move: async (id: string, dest: { kind: 'project'; projectId: string } | { kind: 'task'; taskId: string }) => {
-    let body: any;
-    if (dest.kind === 'project') {
-      body = { parentTaskId: null, projectId: dest.projectId };
-    } else {
-      body = { parentTaskId: dest.taskId };
-    }
-    const t = await api<Task>(`/tasks/${id}`, { method: 'PATCH', body });
+    const body = dest.kind === 'project'
+      ? { parentTaskId: null, projectId: dest.projectId }
+      : { parentTaskId: dest.taskId };
+    const r = await mutate<Task>({ method: 'PATCH', path: `/tasks/${id}`, body });
     await invalidateTaskCaches();
-    return t;
+    return r.data;
   },
 
   duplicate: async (id: string) => {
-    const t = await api<Task>(`/tasks/${id}/duplicate`, { method: 'POST' });
+    const r = await mutate<Task>({ method: 'POST', path: `/tasks/${id}/duplicate` });
     await invalidateTaskCaches();
-    return t;
+    return r.data;
   },
 };
 
 // ─── Projects ───────────────────────────────────────────────────────────
 export const projects = {
   create: async (data: { name: string; initials: string; colorHex: string }) => {
-    const p = await api<Project>('/projects', { method: 'POST', body: data });
+    const r = await mutate<Project>({ method: 'POST', path: '/projects', body: data });
     await clearCache('/projects');
-    return p;
+    return r.data;
   },
 
   update: async (id: string, patch: Partial<{ name: string; initials: string; colorHex: string }>) => {
-    const p = await api<Project>(`/projects/${id}`, { method: 'PATCH', body: patch });
+    const r = await mutate<Project>({ method: 'PATCH', path: `/projects/${id}`, body: patch });
     await clearCache('/projects');
-    return p;
+    return r.data;
   },
 
   archive: async (id: string) => {
-    const p = await api<Project>(`/projects/${id}/archive`, { method: 'POST' });
+    const r = await mutate<Project>({ method: 'POST', path: `/projects/${id}/archive` });
     await clearCache('/projects');
-    return p;
+    return r.data;
   },
 
   unarchive: async (id: string) => {
-    const p = await api<Project>(`/projects/${id}/unarchive`, { method: 'POST' });
+    const r = await mutate<Project>({ method: 'POST', path: `/projects/${id}/unarchive` });
     await clearCache('/projects');
-    return p;
+    return r.data;
   },
 
   remove: async (id: string) => {
-    await api<void>(`/projects/${id}`, { method: 'DELETE' });
+    await mutate<void>({ method: 'DELETE', path: `/projects/${id}` });
     await invalidateTaskCaches();
     await clearCache('/projects');
   },
@@ -99,38 +101,51 @@ export const projects = {
 // ─── Time entries ───────────────────────────────────────────────────────
 export const entries = {
   startTimer: async (taskId: string) => {
-    const e = await api<TimeEntry>('/time-entries/start', { method: 'POST', body: { taskId } });
+    // Stamp the user-action time so a queued replay records the actual moment,
+    // not the moment we eventually drained the outbox.
+    const startedAt = new Date().toISOString();
+    const r = await mutate<TimeEntry>({
+      method: 'POST',
+      path: '/time-entries/start',
+      body: { taskId, startedAt },
+    });
     await clearCache('/time-entries');
     await clearCache('/tasks/');
-    return e;
+    return r.data;
   },
 
   stopTimer: async () => {
-    const e = await api<TimeEntry>('/time-entries/stop', { method: 'POST' });
+    const endedAt = new Date().toISOString();
+    const r = await mutate<TimeEntry>({
+      method: 'POST',
+      path: '/time-entries/stop',
+      body: { endedAt },
+    });
     await clearCache('/time-entries');
     await clearCache('/tasks/');
-    return e;
+    return r.data;
   },
 
   createManual: async (taskId: string, startedAt: string, endedAt: string | null, note?: string, durationSeconds?: number) => {
-    const e = await api<TimeEntry>('/time-entries', {
+    const r = await mutate<TimeEntry>({
       method: 'POST',
+      path: '/time-entries',
       body: { taskId, startedAt, endedAt, note, durationSeconds },
     });
     await clearCache('/time-entries');
     await clearCache('/tasks/');
-    return e;
+    return r.data;
   },
 
   update: async (id: string, patch: Partial<{ startedAt: string; endedAt: string | null; durationSeconds: number; note: string }>) => {
-    const e = await api<TimeEntry>(`/time-entries/${id}`, { method: 'PATCH', body: patch });
+    const r = await mutate<TimeEntry>({ method: 'PATCH', path: `/time-entries/${id}`, body: patch });
     await clearCache('/time-entries');
     await clearCache('/tasks/');
-    return e;
+    return r.data;
   },
 
   remove: async (id: string) => {
-    await api<void>(`/time-entries/${id}`, { method: 'DELETE' });
+    await mutate<void>({ method: 'DELETE', path: `/time-entries/${id}` });
     await clearCache('/time-entries');
     await clearCache('/tasks/');
   },
@@ -139,3 +154,7 @@ export const entries = {
 async function invalidateTaskCaches() {
   await Promise.all([clearCache('/tasks/'), clearCache('/projects/'), clearCache('/projects?')]);
 }
+
+// Some legacy callsites still import { api } from this module. Keep the export
+// alive so they don't break.
+export { api };

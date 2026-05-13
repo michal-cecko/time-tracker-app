@@ -14,6 +14,7 @@ import { QuickAddSheet } from './QuickAdd';
 import { ManualEntryScreen } from './ManualEntry';
 import { SettingsScreen } from './Settings';
 import { api } from '@/api/client';
+import { entries as entriesApi } from '@/api/mutations';
 import { onRealtime } from '@/api/websocket';
 import { useRunning } from '@/state/running';
 import { initNotifications, setNotificationHandlers, showTrackingNotification, cancelTrackingNotification, scheduleIdleReminder, showAutoStoppedNotification } from '@/native/notifications';
@@ -60,7 +61,7 @@ export function MobileShell() {
     initNotifications();
     setNotificationHandlers({
       onPause: async () => {
-        try { await api('/time-entries/stop', { method: 'POST' }); } catch {}
+        try { await entriesApi.stopTimer(); } catch {}
         setRunning(null);
       },
       onOpenTask: (taskId: string) => push({ kind: 'task', id: taskId }),

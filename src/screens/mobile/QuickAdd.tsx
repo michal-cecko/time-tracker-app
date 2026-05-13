@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Sheet } from '@/components/ui/Sheet';
 import { api } from '@/api/client';
+import { entries as entriesApi } from '@/api/mutations';
 import type { Project, Status } from '@/api/types';
 import { STATUS_META, STATUS_ORDER } from '@/api/types';
 
@@ -50,7 +51,7 @@ export function QuickAddSheet({ onClose, defaultProjectId, parentTaskId, parentT
     }
     if (estimateMin) body.estimateSeconds = Math.round(Number(estimateMin) * 60);
     const t = await api<{ id: string }>('/tasks', { method: 'POST', body });
-    if (startOnCreate) await api('/time-entries/start', { method: 'POST', body: { taskId: t.id } });
+    if (startOnCreate) await entriesApi.startTimer(t.id);
     onClose();
   };
 

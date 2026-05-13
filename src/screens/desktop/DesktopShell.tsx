@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { api } from '@/api/client';
+import { entries as entriesApi } from '@/api/mutations';
 import { onRealtime } from '@/api/websocket';
 import { useRunning } from '@/state/running';
 import type { Project, Task, TimeEntry } from '@/api/types';
@@ -14,6 +15,7 @@ import { DesktopHistory } from './DesktopHistory';
 import { Inspector } from './Inspector';
 import { CommandPalette } from './CommandPalette';
 import { LogoMark } from '@/components/brand/Logo';
+import { platform } from '@/utils/platform';
 
 export type DesktopView =
   | { kind: 'today' }
@@ -23,6 +25,7 @@ export type DesktopView =
   | { kind: 'history' };
 
 export function DesktopShell() {
+  const isTauri = platform() === 'macos';
   const [view, setView] = useState<DesktopView>({ kind: 'today' });
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -105,18 +108,20 @@ export function DesktopShell() {
   };
 
   return (
-    <div className="dt-shell app">
-      <div className="dt-titlebar">
-        <div className="dt-lights">
-          <span className="dt-light close" />
-          <span className="dt-light min" />
-          <span className="dt-light max" />
-        </div>
-        <span className="dt-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+    <div className={`dt-shell app ${isTauri ? 'tauri' : ''}`}>
+      <div className="dt-titlebar" data-tauri-drag-region>
+        {!isTauri && (
+          <div className="dt-lights">
+            <span className="dt-light close" />
+            <span className="dt-light min" />
+            <span className="dt-light max" />
+          </div>
+        )}
+        <span className="dt-title" data-tauri-drag-region style={{ display: 'inline-flex', alignItems: 'center', gap: 6, pointerEvents: 'none' }}>
           <LogoMark size={14} />
           Lapse
         </span>
-        <div className="dt-titlebar-right">
+        <div className="dt-titlebar-right" data-tauri-drag-region="false">
           <button className={`dt-timer-pill ${running ? 'running' : 'idle'}`} onClick={() => running && setSelectedTaskId(running.taskId)}>
             {running ? (
               <>
@@ -127,7 +132,7 @@ export function DesktopShell() {
                 <span className="dt-tp-time">{fmtHMS(elapsed)}</span>
                 <span
                   className="dt-tp-stop"
-                  onClick={async (e) => { e.stopPropagation(); await api('/time-entries/stop', { method: 'POST' }); }}
+                  onClick={async (e) => { e.stopPropagation(); await entriesApi.stopTimer(); }}
                   role="button"
                   aria-label="Pause timer"
                 >

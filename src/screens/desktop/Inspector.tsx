@@ -112,8 +112,8 @@ export function Inspector({
           </>
         )}
         <button className="btn primary" style={{ marginTop: 10, width: '100%', justifyContent: 'center' }} onClick={async () => {
-          if (isRunning) await api('/time-entries/stop', { method: 'POST' });
-          else await api('/time-entries/start', { method: 'POST', body: { taskId: task.id } });
+          if (isRunning) await entriesApi.stopTimer();
+          else await entriesApi.startTimer(task.id);
         }}>
           {isRunning ? <><Icon.Pause size={14} />Pause</> : <><Icon.Play size={14} />Start timer</>}
         </button>

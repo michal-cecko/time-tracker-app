@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Icon } from './Icon';
 import { useRunning } from '@/state/running';
 import { fmtHMS } from '@/utils/format';
-import { api } from '@/api/client';
+import { entries as entriesApi } from '@/api/mutations';
 
 export function MiniTimerBar({ onOpen }: { onOpen?: (taskId: string) => void }) {
   const { running, elapsed, tick, setRunning } = useRunning();
@@ -17,7 +17,7 @@ export function MiniTimerBar({ onOpen }: { onOpen?: (taskId: string) => void }) 
 
   const stop = async () => {
     try {
-      await api('/time-entries/stop', { method: 'POST' });
+      await entriesApi.stopTimer();
     } finally {
       setRunning(null);
     }

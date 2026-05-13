@@ -6,8 +6,8 @@ import { api } from '@/api/client';
 
 export function Login({ onNav }: { onNav: (k: 'signup' | 'forgot') => void }) {
   const { login } = useAuth();
-  const [email, setEmail] = useState('alex@studio.co');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
   const [stay, setStay] = useState(false);
   const [err, setErr] = useState<string | null>(null);

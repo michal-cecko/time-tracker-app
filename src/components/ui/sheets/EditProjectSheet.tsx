@@ -42,7 +42,7 @@ export function EditProjectSheet({ project, onClose, onSaved }: Props) {
       const saved = isNew
         ? await projectsApi.create(patch)
         : await projectsApi.update(project!.id, patch);
-      onSaved?.(saved);
+      if (saved) onSaved?.(saved);
       onClose();
     } finally { setBusy(false); }
   };
