@@ -24,6 +24,7 @@
     "@capacitor/status-bar": "^7.0.0",
     "@fontsource/geist": "^5.2.8",
     "@fontsource/geist-mono": "^5.2.7",
+    "capacitor-native-settings": "^8.1.0",
     "dexie": "^4.0.10",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

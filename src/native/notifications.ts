@@ -12,7 +12,9 @@ import { fmtClock } from '@/utils/format';
 
 const TRACKING_ID = 1;
 const IDLE_ID = 2;
+const AUTOSTOP_ID = 3;
 const ACTION_TYPE = 'LAPSE_TIMER';
+const AUTOSTOP_ACTION = 'LAPSE_AUTOSTOP';
 
 type LN = typeof import('@capacitor/local-notifications').LocalNotifications;
 
@@ -20,6 +22,7 @@ let cached: LN | null = null;
 let actionsRegistered = false;
 let pauseHandler: () => void = () => {};
 let openHandler: (taskId: string) => void = () => {};
+let reviewHandler: (entryId: string) => void = () => {};
 
 async function ln(): Promise<LN | null> {
   if (typeof window === 'undefined') return null;
@@ -37,9 +40,11 @@ async function ln(): Promise<LN | null> {
 export function setNotificationHandlers(opts: {
   onPause: () => void;
   onOpenTask: (taskId: string) => void;
+  onReviewEntry?: (entryId: string) => void;
 }) {
   pauseHandler = opts.onPause;
   openHandler = opts.onOpenTask;
+  if (opts.onReviewEntry) reviewHandler = opts.onReviewEntry;
 }
 
 /** Call once at app boot (after auth). Idempotent. Requests permission. */
@@ -51,13 +56,21 @@ export async function initNotifications() {
   if (!actionsRegistered) {
     try {
       await N.registerActionTypes({
-        types: [{
-          id: ACTION_TYPE,
-          actions: [
-            { id: 'pause', title: 'Pause' },
-            { id: 'open',  title: 'Open task' },
-          ],
-        }],
+        types: [
+          {
+            id: ACTION_TYPE,
+            actions: [
+              { id: 'pause', title: 'Pause' },
+              { id: 'open',  title: 'Open task' },
+            ],
+          },
+          {
+            id: AUTOSTOP_ACTION,
+            actions: [
+              { id: 'review', title: 'Review' },
+            ],
+          },
+        ],
       });
     } catch {}
     actionsRegistered = true;
@@ -65,9 +78,16 @@ export async function initNotifications() {
 
   // Tap on the notification body OR an action button → run the handler.
   N.addListener('localNotificationActionPerformed', (e) => {
-    const taskId: string | undefined = e.notification?.extra?.taskId;
-    if (e.actionId === 'pause') pauseHandler();
-    else if (taskId) openHandler(taskId);
+    const extra = (e.notification?.extra ?? {}) as { taskId?: string; entryId?: string; kind?: string };
+    if (e.actionId === 'pause') {
+      pauseHandler();
+      return;
+    }
+    if (e.actionId === 'review' || extra.kind === 'autostop') {
+      if (extra.entryId) reviewHandler(extra.entryId);
+      return;
+    }
+    if (extra.taskId) openHandler(extra.taskId);
   }).catch(() => {});
 }
 
@@ -88,7 +108,9 @@ export async function showTrackingNotification({ taskTitle, taskId, startedAt }:
         body: `Started ${fmtClock(new Date(startedAt))} — tap to open`,
         ongoing: true,
         autoCancel: false,
-        smallIcon: 'ic_stat_icon_config_sample',
+        // Don't set `smallIcon` — the plugin falls back to the app icon when
+        // omitted. Setting a non-existent drawable name silently kills the
+        // notification on Android.
         actionTypeId: ACTION_TYPE,
         extra: { taskId },
       }],
@@ -118,6 +140,32 @@ export async function scheduleIdleReminder({ taskTitle, taskId, minutes }: { tas
         schedule: { at: new Date(Date.now() + minutes * 60_000) },
         actionTypeId: ACTION_TYPE,
         extra: { taskId },
+      }],
+    });
+  } catch {}
+}
+
+/** Shown when the server's midnight cron force-stopped a running entry. */
+export async function showAutoStoppedNotification({
+  taskTitle,
+  entryId,
+  durationSeconds,
+}: {
+  taskTitle: string;
+  entryId: string;
+  durationSeconds: number;
+}) {
+  const N = await ln();
+  if (!N) return;
+  const hours = Math.round((durationSeconds / 3600) * 10) / 10;
+  try {
+    await N.schedule({
+      notifications: [{
+        id: AUTOSTOP_ID,
+        title: 'Auto-stopped at midnight',
+        body: `"${taskTitle}" had been running for ${hours}h. Tap to review the entry.`,
+        actionTypeId: AUTOSTOP_ACTION,
+        extra: { entryId, kind: 'autostop' },
       }],
     });
   } catch {}

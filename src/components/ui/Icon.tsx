@@ -50,4 +50,6 @@ export const Icon = {
   Archive: (p: IProps) => <Svg {...p}><rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4" /></Svg>,
   Inbox:   (p: IProps) => <Svg {...p}><path d="M3 13l2-7h14l2 7M3 13v7h18v-7M3 13h5l1 2h6l1-2h5" /></Svg>,
   Target:  (p: IProps) => <Svg {...p}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" fill="currentColor" /></Svg>,
+  Eye:     (p: IProps) => <Svg {...p}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></Svg>,
+  EyeOff:  (p: IProps) => <Svg {...p}><path d="M3 3l18 18" /><path d="M10.6 6.2A10 10 0 0 1 12 6c6.5 0 10 6 10 6a17.7 17.7 0 0 1-3.3 4.1" /><path d="M6.6 6.6A17.6 17.6 0 0 0 2 12s3.5 6 10 6a9.5 9.5 0 0 0 4.4-1.1" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /></Svg>,
 };

@@ -100,18 +100,22 @@ export function SettingsScreen({ onBack }: { onBack: () => void }) {
         <div className="section">
           <div className="section-head"><span>Tracking</span></div>
           <div className="card">
-            <SettingRow label="Idle detection" value={`${s.idleDetectionMin}m`} onChange={(v) => patch({ idleDetectionMin: Number(v) })} numeric />
-            <SettingToggle label="Auto-stop at midnight" value={s.autoStopAtMidnight} onChange={(v) => patch({ autoStopAtMidnight: v })} />
-            <SettingToggle label="Pomodoro mode" value={s.pomodoroEnabled} onChange={(v) => patch({ pomodoroEnabled: v })} />
-            <SettingToggle label="Reminders" value={s.remindersEnabled} onChange={(v) => patch({ remindersEnabled: v })} />
+            <ReminderRow
+              minutes={s.idleDetectionMin}
+              onChange={(m) => patch({ idleDetectionMin: m })}
+            />
+            <SettingToggle
+              label="Auto-stop at midnight"
+              value={s.autoStopAtMidnight}
+              onChange={(v) => patch({ autoStopAtMidnight: v })}
+              hint="If a timer is still running at 00:00, the server stops it for you and sends a notification so you can review the entry."
+            />
           </div>
         </div>
 
         <div className="section">
-          <div className="section-head"><span>Sync</span></div>
+          <div className="section-head"><span>Data</span></div>
           <div className="card">
-            <SettingRow label="Status" value="All synced" />
-            <SettingToggle label="Calendar integration" value={s.calendarIntegration} onChange={(v) => patch({ calendarIntegration: v })} />
             <div className="task" onClick={() => alert('Export TBD')}>
               <div className="grow"><div className="title-line">Export data</div></div>
               <Icon.ChevronRight size={14} />
@@ -122,7 +126,8 @@ export function SettingsScreen({ onBack }: { onBack: () => void }) {
         <div className="section">
           <div className="section-head"><span>About</span></div>
           <div className="card">
-            <SettingRow label="Version" value="0.1.0" />
+            <SettingRow label="Version" value={__APP_VERSION__} />
+            <SettingRow label="Build" value={`#${__APP_BUILD_NUMBER__} · ${__APP_BUILD_TIME__.slice(0, 10)}`} />
             <div className="task" onClick={() => alert('Help TBD')}>
               <div className="grow"><div className="title-line">Help & support</div></div>
               <Icon.ChevronRight size={14} />
@@ -138,16 +143,110 @@ export function SettingsScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
-function SettingRow({ label, value, onChange, numeric }: { label: string; value: string | number; onChange?: (v: string) => void; numeric?: boolean }) {
+// "Remind me if a timer runs long" — toggle on/off + (when on) editable minutes.
+// The input is fully clearable; we only commit a value on blur, so deleting the
+// digits doesn't snap back to the default while you're mid-edit. Empty/zero on
+// blur means: keep enabled with the previous value, or disable if user really
+// wants no reminder by toggling off.
+function ReminderRow({ minutes, onChange }: { minutes: number; onChange: (m: number) => void }) {
+  const enabled = minutes > 0;
+  const [draft, setDraft] = useState<string>(enabled ? String(minutes) : '');
+
+  // Sync local draft when the upstream value changes (e.g. after server fetch).
+  useEffect(() => {
+    if (enabled) setDraft(String(minutes));
+    else setDraft('');
+  }, [minutes, enabled]);
+
+  const toggle = (next: boolean) => {
+    if (next) {
+      onChange(60);          // default when turning on
+      setDraft('60');
+    } else {
+      onChange(0);           // 0 means disabled, both client + server
+      setDraft('');
+    }
+  };
+
+  const commit = () => {
+    if (!enabled) return;
+    const n = Number(draft);
+    if (!Number.isFinite(n) || n < 1) {
+      // Empty / invalid → keep the previously-saved value instead of snapping
+      // to a default. Reset draft to match.
+      setDraft(String(minutes));
+      return;
+    }
+    const clamped = Math.min(720, Math.max(1, Math.round(n)));
+    if (clamped !== minutes) onChange(clamped);
+    setDraft(String(clamped));
+  };
+
+  return (
+    <div className="task" style={{ minHeight: 48, alignItems: 'flex-start', paddingTop: 12, paddingBottom: 12 }}>
+      <div className="grow">
+        <div className="title-line">Remind me if timer runs long</div>
+        <div className="meta" style={{ marginTop: 2, lineHeight: 1.4 }}>
+          {enabled
+            ? `Notification fires once a running timer has been on for the chosen interval.`
+            : `No reminder will be sent for long-running timers.`}
+        </div>
+        {enabled && (
+          <div className="hstack" style={{ marginTop: 8, gap: 8, alignItems: 'center' }}>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={720}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={commit}
+              onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur(); }}
+              placeholder="60"
+              className="mono"
+              style={{ width: 80, textAlign: 'right', background: 'var(--bg-elev-2)', borderRadius: 8, padding: '8px 10px', fontSize: 15 }}
+            />
+            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>minutes</span>
+          </div>
+        )}
+      </div>
+      <ToggleSwitch on={enabled} onChange={toggle} />
+    </div>
+  );
+}
+
+function ToggleSwitch({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      onClick={() => onChange(!on)}
+      aria-pressed={on}
+      style={{
+        width: 36, height: 22, borderRadius: 999,
+        background: on ? 'var(--accent)' : 'var(--bg-elev-2)',
+        position: 'relative', border: 0, transition: 'background .15s', flexShrink: 0,
+      }}
+    >
+      <span style={{
+        position: 'absolute', top: 2, left: on ? 16 : 2,
+        width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left .15s',
+      }} />
+    </button>
+  );
+}
+
+function SettingRow({ label, value, onChange, numeric, hint }: { label: string; value: string | number; onChange?: (v: string) => void; numeric?: boolean; hint?: string }) {
   if (onChange) {
     return (
-      <div className="task" style={{ minHeight: 48 }}>
-        <div className="grow"><div className="title-line">{label}</div></div>
+      <div className="task" style={{ minHeight: 48, alignItems: hint ? 'flex-start' : 'center', paddingTop: hint ? 12 : undefined, paddingBottom: hint ? 12 : undefined }}>
+        <div className="grow">
+          <div className="title-line">{label}</div>
+          {hint && <div className="meta" style={{ marginTop: 2, lineHeight: 1.4 }}>{hint}</div>}
+        </div>
         <input
           type={numeric ? 'number' : 'text'}
           value={String(value).replace('m', '')}
           onChange={(e) => onChange(e.target.value)}
-          style={{ width: 60, textAlign: 'right', background: 'var(--bg-elev-2)', borderRadius: 6, padding: '4px 8px' }}
+          style={{ width: 70, textAlign: 'right', background: 'var(--bg-elev-2)', borderRadius: 6, padding: '6px 10px' }}
         />
       </div>
     );
@@ -160,10 +259,13 @@ function SettingRow({ label, value, onChange, numeric }: { label: string; value:
   );
 }
 
-function SettingToggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+function SettingToggle({ label, value, onChange, hint }: { label: string; value: boolean; onChange: (v: boolean) => void; hint?: string }) {
   return (
-    <div className="task" style={{ minHeight: 48 }} onClick={() => onChange(!value)}>
-      <div className="grow"><div className="title-line">{label}</div></div>
+    <div className="task" style={{ minHeight: 48, alignItems: hint ? 'flex-start' : 'center', paddingTop: hint ? 12 : undefined, paddingBottom: hint ? 12 : undefined }} onClick={() => onChange(!value)}>
+      <div className="grow">
+        <div className="title-line">{label}</div>
+        {hint && <div className="meta" style={{ marginTop: 2, lineHeight: 1.4 }}>{hint}</div>}
+      </div>
       <span style={{
         width: 36, height: 22, borderRadius: 999,
         background: value ? 'var(--accent)' : 'var(--bg-elev-2)',

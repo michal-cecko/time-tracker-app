@@ -9,17 +9,19 @@ import { ConfirmSheet } from '@/components/ui/sheets/ConfirmSheet';
 import { EditTaskSheet } from '@/components/ui/sheets/EditTaskSheet';
 import { MoveTaskSheet } from '@/components/ui/sheets/MoveTaskSheet';
 import { EditEntrySheet } from '@/components/ui/sheets/EditEntrySheet';
+import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 import { QuickAddSheet } from './QuickAdd';
 import { tasks as tasksApi, entries as entriesApi } from '@/api/mutations';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
-import type { ActivityLog, BillingMode, Task, TimeEntry } from '@/api/types';
+import type { ActivityLog, BillingMode, Project, Task, TimeEntry } from '@/api/types';
 import { fmtClock, fmtHM, fmtHMS, fmtMoneyCents } from '@/utils/format';
 import { useNav } from '@/state/stack';
 import { useRunning } from '@/state/running';
 
 export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => void }) {
   const [task, setTask] = useState<Task | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [picker, setPicker] = useState(false);
@@ -43,12 +45,14 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
       rate: t.hourlyRateCents != null ? (t.hourlyRateCents / 100).toString() : '',
       price: t.taskPriceCents != null ? (t.taskPriceCents / 100).toString() : '',
     });
-    const [e, a] = await Promise.all([
+    const [e, a, p] = await Promise.all([
       api<TimeEntry[]>(`/tasks/${id}/time-entries?descendants=true`),
       api<ActivityLog[]>(`/activity?taskId=${id}&limit=30`),
+      api<Project>(`/projects/${t.projectId}`).catch(() => null),
     ]);
     setEntries(e);
     setActivity(a);
+    setProject(p);
   };
 
   useEffect(() => {
@@ -123,6 +127,16 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
 
       <div className="scroll">
         <div className="section">
+          {project && (
+            <div style={{ marginBottom: 8, fontSize: 12.5 }}>
+              <Breadcrumbs
+                project={{ id: project.id, name: project.name, colorHex: project.colorHex }}
+                ancestors={task.ancestors}
+                onProject={(pid) => push({ kind: 'project', id: pid })}
+                onTask={(tid) => push({ kind: 'task', id: tid })}
+              />
+            </div>
+          )}
           <div style={{ fontSize: 24, fontWeight: 600, letterSpacing: '-0.01em', marginBottom: 10 }}>
             {task.title} <PriorityFlag urgent={task.urgent} />
           </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Icon } from '@/components/ui/Icon';
+import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 import { api } from '@/api/client';
 import type { TimeEntry, WeeklyReport } from '@/api/types';
 import { fmtHM } from '@/utils/format';
@@ -95,19 +96,43 @@ export function ReportsScreen() {
         <div className="section">
           <div className="section-head"><span>Recent sessions</span><span className="count">{recent.length}</span></div>
           <div className="card">
-            {recent.map((e) => (
-              <div key={e.id} className="task" style={{ minHeight: 48 }} onClick={() => push({ kind: 'task', id: e.taskId })}>
-                {!e.endedAt && <span className="pulse" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />}
-                <div className="grow">
-                  <div className="title-line">{e.task?.title ?? 'Entry'}</div>
-                  <div className="meta">
-                    {e.task?.project && <><span style={{ width: 8, height: 8, borderRadius: 2, background: e.task.project.colorHex }} /><span>{e.task.project.name}</span><span className="sep" /></>}
-                    <span className="mono">{new Date(e.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })} – {e.endedAt ? new Date(e.endedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : 'now'}</span>
+            {recent.map((e) => {
+              const nested = (e.task?.ancestors?.length ?? 0) > 0;
+              return (
+                <div key={e.id} className="task" style={{ minHeight: 48 }} onClick={() => push({ kind: 'task', id: e.taskId })}>
+                  {!e.endedAt && <span className="pulse" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />}
+                  <div className="grow" style={{ minWidth: 0 }}>
+                    {nested && e.task?.project ? (
+                      <>
+                        <div className="meta" style={{ marginBottom: 2 }}>
+                          <Breadcrumbs
+                            project={{ id: e.task.project.id, name: e.task.project.name, colorHex: e.task.project.colorHex }}
+                            ancestors={e.task.ancestors}
+                            onProject={(id) => push({ kind: 'project', id })}
+                            onTask={(id) => push({ kind: 'task', id })}
+                          />
+                        </div>
+                        <div className="title-line">{e.task.title}</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="title-line">{e.task?.title ?? 'Entry'}</div>
+                        {e.task?.project && (
+                          <div className="meta">
+                            <span style={{ width: 8, height: 8, borderRadius: 2, background: e.task.project.colorHex }} />
+                            <span>{e.task.project.name}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <div className="meta">
+                      <span className="mono">{new Date(e.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })} – {e.endedAt ? new Date(e.endedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : 'now'}</span>
+                    </div>
                   </div>
+                  <span className="mono">{fmtHM(e.endedAt ? e.durationSeconds : Math.floor((Date.now() - new Date(e.startedAt).getTime()) / 1000))}</span>
                 </div>
-                <span className="mono">{fmtHM(e.endedAt ? e.durationSeconds : Math.floor((Date.now() - new Date(e.startedAt).getTime()) / 1000))}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
         <div style={{ height: 120 }} />

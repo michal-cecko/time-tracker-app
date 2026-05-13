@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../AuthContext';
 import { LogoTile } from '@/components/brand/Logo';
+import { Icon } from '@/components/ui/Icon';
 import { api } from '@/api/client';
 
 export function Login({ onNav }: { onNav: (k: 'signup' | 'forgot') => void }) {
   const { login } = useAuth();
   const [email, setEmail] = useState('alex@studio.co');
   const [password, setPassword] = useState('password123');
+  const [showPwd, setShowPwd] = useState(false);
   const [stay, setStay] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -43,7 +45,25 @@ export function Login({ onNav }: { onNav: (k: 'signup' | 'forgot') => void }) {
         </div>
         <div className="field">
           <label>Password</label>
-          <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <div className="field-row">
+            <input
+              type={showPwd ? 'text' : 'password'}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button
+              type="button"
+              className="field-toggle"
+              onClick={() => setShowPwd((v) => !v)}
+              aria-label={showPwd ? 'Hide password' : 'Show password'}
+              aria-pressed={showPwd}
+              tabIndex={-1}
+            >
+              {showPwd ? <Icon.EyeOff size={18} /> : <Icon.Eye size={18} />}
+            </button>
+          </div>
         </div>
         {err && <div className="auth-error">{err}</div>}
         <div className="row">

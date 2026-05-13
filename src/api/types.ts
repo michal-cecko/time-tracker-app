@@ -29,11 +29,6 @@ export interface Settings {
   fontScale: number;
   idleDetectionMin: number;
   autoStopAtMidnight: boolean;
-  pomodoroEnabled: boolean;
-  pomodoroWorkMin: number;
-  pomodoroBreakMin: number;
-  remindersEnabled: boolean;
-  calendarIntegration: boolean;
 }
 
 export interface Project {
@@ -81,6 +76,8 @@ export interface Task {
   effectiveRateCents: number | null;
   earnedSoFarCents: number | null;
   projectedTotalCents: number | null;
+  // Path from root → direct parent (excluding this task). Empty for top-level.
+  ancestors: Array<{ id: string; title: string }>;
   children: Task[];
 }
 
@@ -92,10 +89,16 @@ export interface TimeEntry {
   endedAt: string | null;
   durationSeconds: number;
   manual: boolean;
+  autoStopped: boolean;
   note: string | null;
   createdAt: string;
   updatedAt: string;
-  task?: { id: string; title: string; project?: { id: string; name: string; colorHex: string; initials: string } };
+  task?: {
+    id: string;
+    title: string;
+    ancestors?: Array<{ id: string; title: string }>;
+    project?: { id: string; name: string; colorHex: string; initials: string };
+  };
 }
 
 export interface ActivityLog {

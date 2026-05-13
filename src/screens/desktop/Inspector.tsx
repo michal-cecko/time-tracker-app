@@ -8,15 +8,27 @@ import { ConfirmSheet } from '@/components/ui/sheets/ConfirmSheet';
 import { EditTaskSheet } from '@/components/ui/sheets/EditTaskSheet';
 import { MoveTaskSheet } from '@/components/ui/sheets/MoveTaskSheet';
 import { EditEntrySheet } from '@/components/ui/sheets/EditEntrySheet';
+import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import { tasks as tasksApi, entries as entriesApi } from '@/api/mutations';
-import type { Task, TimeEntry } from '@/api/types';
+import type { Project, Task, TimeEntry } from '@/api/types';
 import { fmtClock, fmtHM, fmtHMS, fmtMoneyCents } from '@/utils/format';
 import { useRunning } from '@/state/running';
 
-export function Inspector({ taskId, onClear }: { taskId: string | null; onClear: () => void }) {
+export function Inspector({
+  taskId,
+  onClear,
+  onSelectTask,
+  onSelectProject,
+}: {
+  taskId: string | null;
+  onClear: () => void;
+  onSelectTask?: (id: string) => void;
+  onSelectProject?: (id: string) => void;
+}) {
   const [task, setTask] = useState<Task | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [picker, setPicker] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
@@ -28,11 +40,17 @@ export function Inspector({ taskId, onClear }: { taskId: string | null; onClear:
   const { running, elapsed, tick } = useRunning();
 
   const load = async (id: string) => {
-    setTask(await api<Task>(`/tasks/${id}`));
-    setEntries(await api<TimeEntry[]>(`/tasks/${id}/time-entries?descendants=true`));
+    const t = await api<Task>(`/tasks/${id}`);
+    setTask(t);
+    const [es, p] = await Promise.all([
+      api<TimeEntry[]>(`/tasks/${id}/time-entries?descendants=true`),
+      api<Project>(`/projects/${t.projectId}`).catch(() => null),
+    ]);
+    setEntries(es);
+    setProject(p);
   };
   useEffect(() => {
-    if (!taskId) { setTask(null); setEntries([]); return; }
+    if (!taskId) { setTask(null); setProject(null); setEntries([]); return; }
     load(taskId);
     const offs = [
       onRealtime('task.upserted', (t: Task) => { if (t.id === taskId) load(taskId); }),
@@ -66,6 +84,16 @@ export function Inspector({ taskId, onClear }: { taskId: string | null; onClear:
         <button className="icon-btn" onClick={() => setActionsOpen(true)} aria-label="Task actions"><Icon.More size={14} /></button>
         <button className="icon-btn" onClick={onClear} aria-label="Close"><Icon.X size={14} /></button>
       </div>
+      {project && (
+        <div style={{ marginBottom: 6, fontSize: 11.5 }}>
+          <Breadcrumbs
+            project={{ id: project.id, name: project.name, colorHex: project.colorHex }}
+            ancestors={task.ancestors}
+            onProject={onSelectProject}
+            onTask={onSelectTask}
+          />
+        </div>
+      )}
       <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 8 }}>{task.title} <PriorityFlag urgent={task.urgent} /></div>
       <div className="hstack" style={{ gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
         <StatusPill status={task.status} onClick={() => setPicker(true)} />

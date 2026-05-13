@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { StatusDot } from '@/components/ui/Status';
 import { PriorityFlag } from '@/components/ui/PriorityFlag';
+import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import type { Project, Task, WeeklyReport } from '@/api/types';
@@ -49,7 +50,9 @@ export function DesktopToday({ onSelectTask, onSelectProject }: { onSelectTask: 
   const todayTracked = weekly?.days.find((d) => d.date === todayKey)?.total ?? 0;
   const sub = `${now.toLocaleDateString([], { weekday: 'long' })} · ${now.toLocaleDateString([], { month: 'short', day: 'numeric' })} · ${fmtHM(todayTracked)} tracked`;
 
-  const Row = ({ b }: { b: Bucket }) => (
+  const Row = ({ b }: { b: Bucket }) => {
+    const nested = (b.task.ancestors?.length ?? 0) > 0;
+    return (
     <div className={`dt-task ${b.task.running ? 'running' : ''}`} onClick={() => onSelectTask(b.task.id)}>
       <button
         className="dt-task-status"
@@ -58,9 +61,21 @@ export function DesktopToday({ onSelectTask, onSelectProject }: { onSelectTask: 
       >
         <StatusDot status={b.task.status} />
       </button>
-      <span className="dt-task-title">
-        {b.task.title}
-        <PriorityFlag urgent={b.task.urgent} />
+      <span className="dt-task-title" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, minWidth: 0 }}>
+        {nested && (
+          <span style={{ fontSize: 11.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+            <Breadcrumbs
+              project={{ id: b.project.id, name: b.project.name, colorHex: b.project.colorHex }}
+              ancestors={b.task.ancestors}
+              onProject={onSelectProject}
+              onTask={onSelectTask}
+            />
+          </span>
+        )}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {b.task.title}
+          <PriorityFlag urgent={b.task.urgent} />
+        </span>
       </span>
       <button
         className="dt-task-proj"
@@ -85,7 +100,8 @@ export function DesktopToday({ onSelectTask, onSelectProject }: { onSelectTask: 
         {b.task.running ? <Icon.Pause size={12} /> : <Icon.Play size={12} />}
       </button>
     </div>
-  );
+    );
+  };
 
   return (
     <>
@@ -113,7 +129,7 @@ export function DesktopToday({ onSelectTask, onSelectProject }: { onSelectTask: 
       {also.length > 0 && (
         <div className="dt-section">
           <div className="dt-section-head">
-            <span className="dt-col-title">Also today</span>
+            <span className="dt-col-title">{urgent.length > 0 ? 'Also today' : 'Tasks for today'}</span>
             <span className="dt-col-count">{also.length}</span>
           </div>
           <div className="dt-col-body">{also.map((b) => <Row key={b.task.id} b={b} />)}</div>

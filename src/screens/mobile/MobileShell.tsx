@@ -16,7 +16,7 @@ import { SettingsScreen } from './Settings';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import { useRunning } from '@/state/running';
-import { initNotifications, setNotificationHandlers, showTrackingNotification, cancelTrackingNotification, scheduleIdleReminder } from '@/native/notifications';
+import { initNotifications, setNotificationHandlers, showTrackingNotification, cancelTrackingNotification, scheduleIdleReminder, showAutoStoppedNotification } from '@/native/notifications';
 import type { Settings, Task, TimeEntry } from '@/api/types';
 import { isNative } from '@/utils/platform';
 
@@ -25,6 +25,35 @@ export function MobileShell() {
   const setRunning = useRunning((s) => s.setRunning);
   const running = useRunning((s) => s.running);
   const idleMinRef = useRef(60); // sane default until /me/settings loads
+
+  // Android hardware-back: close any open sheet → else pop the nav stack →
+  // else minimize the app instead of exiting. Web/iOS skip this entirely.
+  useEffect(() => {
+    if (!isNative()) return;
+    let cleanup: (() => void) | null = null;
+    (async () => {
+      const { App } = await import('@capacitor/app');
+      const handle = await App.addListener('backButton', () => {
+        // 1. A sheet/modal is up — dismiss it by clicking its backdrop.
+        //    Every sheet in the app uses .sheet-backdrop and closes on backdrop click.
+        const backdrops = document.querySelectorAll<HTMLElement>('.sheet-backdrop');
+        if (backdrops.length > 0) {
+          backdrops[backdrops.length - 1].click();
+          return;
+        }
+        // 2. A pushed screen is on top — pop one level.
+        const state = useNav.getState();
+        if (state.stack.length > 0) {
+          state.back();
+          return;
+        }
+        // 3. At the root tab — minimize instead of killing the app.
+        App.minimizeApp().catch(() => {});
+      });
+      cleanup = () => handle.remove();
+    })();
+    return () => { cleanup?.(); };
+  }, []);
 
   // Boot the notification plugin once and wire its action buttons to app handlers.
   useEffect(() => {
@@ -35,6 +64,9 @@ export function MobileShell() {
         setRunning(null);
       },
       onOpenTask: (taskId: string) => push({ kind: 'task', id: taskId }),
+      // Tapping "Review" on the auto-stop notification jumps straight into the
+      // manual-entry sheet for that entry so the user can trim or delete it.
+      onReviewEntry: (entryId: string) => push({ kind: 'manual', entryId }),
     });
     // Read the user's preferred reminder interval so the next start uses it.
     (async () => {
@@ -66,6 +98,14 @@ export function MobileShell() {
     const offs = [
       onRealtime('timer.started', hydrate),
       onRealtime('timer.stopped', () => setRunning(null)),
+      onRealtime('timer.autoStopped', (e: { entryId: string; taskTitle: string; durationSeconds: number }) => {
+        setRunning(null);
+        showAutoStoppedNotification({
+          taskTitle: e.taskTitle,
+          entryId: e.entryId,
+          durationSeconds: e.durationSeconds,
+        });
+      }),
     ];
     return () => offs.forEach((o) => o());
   }, [setRunning]);

@@ -212,7 +212,12 @@ export function DesktopShell() {
         </main>
 
         <aside className={`dt-inspector ${selectedTaskId ? '' : 'empty'}`}>
-          <Inspector taskId={selectedTaskId} onClear={() => setSelectedTaskId(null)} />
+          <Inspector
+            taskId={selectedTaskId}
+            onClear={() => setSelectedTaskId(null)}
+            onSelectTask={(id) => setSelectedTaskId(id)}
+            onSelectProject={(id) => setView({ kind: 'project', id })}
+          />
         </aside>
       </div>
 
@@ -222,7 +227,7 @@ export function DesktopShell() {
         <span style={{ flex: 1 }} />
         <span className="mono">{fmtHM(totalTracked)} tracked</span>
         <span className="dt-sep" />
-        <span>v0.1.0 · {user?.email}</span>
+        <span>{__APP_VERSION__} · {user?.email}</span>
       </div>
 
       {paletteOpen && (

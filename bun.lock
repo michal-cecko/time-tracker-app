@@ -13,6 +13,7 @@
         "@capacitor/status-bar": "^7.0.0",
         "@fontsource/geist": "^5.2.8",
         "@fontsource/geist-mono": "^5.2.7",
+        "capacitor-native-settings": "^8.1.0",
         "dexie": "^4.0.10",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
@@ -237,6 +238,8 @@
     "brace-expansion": ["brace-expansion@5.0.6", "", { "dependencies": { "balanced-match": "^4.0.2" } }, "sha512-kLpxurY4Z4r9sgMsyG0Z9uzsBlgiU/EFKhj/h91/8yHu0edo7XuixOIH3VcJ8kkxs6/jPzoI6U9Vj3WqbMQ94g=="],
 
     "buffer-crc32": ["buffer-crc32@0.2.13", "", {}, "sha512-VO9Ht/+p3SN7SKWqcrgEzjGbRSJYTx+Q1pTQC0wrWqHx0vpJraQ6GtHx8tvcg1rlK1byhU5gccxgOgj7B0TDkQ=="],
+
+    "capacitor-native-settings": ["capacitor-native-settings@8.1.0", "", { "peerDependencies": { "@capacitor/core": ">=8.0.2" } }, "sha512-bcIsKO0EBChdiG2l7RAt70cKxz0Vygfx7quN6tSoNlwziCct8f5EgT8xmwNit+7F712ojl54xNaEddu87EpkjQ=="],
 
     "chownr": ["chownr@3.0.0", "", {}, "sha512-+IxzY9BZOQd/XuYPRmrvEVjF/nqj5kgT4kEq7VofrDoM1MxoRjEWkrCC3EtLi59TVawxTAn+orJwFQcrqEN1+g=="],
 

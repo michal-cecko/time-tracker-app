@@ -4,6 +4,7 @@ import { Icon } from '@/components/ui/Icon';
 import { StatusDot } from '@/components/ui/Status';
 import { PriorityFlag } from '@/components/ui/PriorityFlag';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import type { Project, Task, TimeEntry, WeeklyReport } from '@/api/types';
@@ -11,12 +12,14 @@ import { fmtHM, fmtHMS, fmtRelative } from '@/utils/format';
 import { useNav } from '@/state/stack';
 import { useRunning } from '@/state/running';
 
+interface TaskWithCtx { task: Task; project: Project }
+
 interface TodayData {
   projects: Project[];
   runningEntry: TimeEntry | null;
   weekly: WeeklyReport | null;
-  urgent: Task[];
-  alsoToday: Task[];
+  urgent: TaskWithCtx[];
+  alsoToday: TaskWithCtx[];
   runningTask: Task | null;
 }
 
@@ -49,11 +52,15 @@ export function TodayScreen() {
     treeByProject.forEach((tree, i) => tree.forEach((t) => walk(t, projects[i])));
 
     const open = allTasks.filter(({ task }) => !['DONE', 'INVOICED'].includes(task.status));
-    const urgent = open.filter(({ task }) => task.urgent).map(({ task }) => task);
-    const alsoToday = open
-      .filter(({ task }) => !task.urgent && (isToday(task.dueDate) || task.running))
-      .map(({ task }) => task)
-      .slice(0, 8);
+    const urgent = open.filter(({ task }) => task.urgent);
+
+    // "Also today" — strict: due today OR currently running. Fallback (when
+    // the user hasn't set due dates yet) to in-progress / in-review work so
+    // the section never collapses on a fresh install. Mirrors DesktopToday.
+    const nonUrgent = open.filter(({ task }) => !task.urgent);
+    const strict = nonUrgent.filter(({ task }) => isToday(task.dueDate) || task.running);
+    const fallback = nonUrgent.filter(({ task }) => ['IN_PROGRESS', 'IN_REVIEW'].includes(task.status));
+    const alsoToday = (strict.length ? strict : fallback).slice(0, 12);
 
     let runningTask: Task | null = null;
     if (runningEntry) {
@@ -144,17 +151,8 @@ export function TodayScreen() {
           <div className="section">
             <div className="section-head"><span>Up next · priority</span><span className="count">{data.urgent.length}</span></div>
             <div className="card">
-              {data.urgent.map((t) => (
-                <div key={t.id} className="task" onClick={() => push({ kind: 'task', id: t.id })} style={{ cursor: 'pointer' }}>
-                  <StatusDot status={t.status} />
-                  <div className="grow">
-                    <div className="title-line">{t.title} <PriorityFlag urgent={t.urgent} /></div>
-                    <div className="meta"><span className="mono">{fmtHM(t.totalTime)}{t.totalEstimate ? ` / ${fmtHM(t.totalEstimate)}` : ''}</span></div>
-                  </div>
-                  <button className="icon-btn" onClick={(e) => { e.stopPropagation(); playTask(t.id); }} aria-label="Play">
-                    {t.running ? <Icon.Pause size={14} /> : <Icon.Play size={14} />}
-                  </button>
-                </div>
+              {data.urgent.map(({ task: t, project: p }) => (
+                <TaskListRow key={t.id} task={t} project={p} onOpenTask={(id) => push({ kind: 'task', id })} onOpenProject={(id) => push({ kind: 'project', id })} onPlay={playTask} showFlag />
               ))}
             </div>
           </div>
@@ -162,19 +160,13 @@ export function TodayScreen() {
 
         {data && data.alsoToday.length > 0 && (
           <div className="section">
-            <div className="section-head"><span>Also today</span><span className="count">{data.alsoToday.length}</span></div>
+            <div className="section-head">
+              <span>{data.urgent.length > 0 ? 'Also today' : 'Tasks for today'}</span>
+              <span className="count">{data.alsoToday.length}</span>
+            </div>
             <div className="card">
-              {data.alsoToday.map((t) => (
-                <div key={t.id} className="task" onClick={() => push({ kind: 'task', id: t.id })} style={{ cursor: 'pointer' }}>
-                  <StatusDot status={t.status} />
-                  <div className="grow">
-                    <div className="title-line">{t.title}</div>
-                    <div className="meta"><span className="mono">{fmtHM(t.totalTime)}{t.totalEstimate ? ` / ${fmtHM(t.totalEstimate)}` : ''}</span></div>
-                  </div>
-                  <button className="icon-btn" onClick={(e) => { e.stopPropagation(); playTask(t.id); }} aria-label="Play">
-                    {t.running ? <Icon.Pause size={14} /> : <Icon.Play size={14} />}
-                  </button>
-                </div>
+              {data.alsoToday.map(({ task: t, project: p }) => (
+                <TaskListRow key={t.id} task={t} project={p} onOpenTask={(id) => push({ kind: 'task', id })} onOpenProject={(id) => push({ kind: 'project', id })} onPlay={playTask} />
               ))}
             </div>
           </div>
@@ -205,5 +197,49 @@ export function TodayScreen() {
         <div style={{ height: 32 }} />
       </div>
     </>
+  );
+}
+
+function TaskListRow({
+  task: t,
+  project,
+  onOpenTask,
+  onOpenProject,
+  onPlay,
+  showFlag,
+}: {
+  task: Task;
+  project: Project;
+  onOpenTask: (id: string) => void;
+  onOpenProject: (id: string) => void;
+  onPlay: (id: string) => void;
+  showFlag?: boolean;
+}) {
+  const nested = (t.ancestors?.length ?? 0) > 0;
+  return (
+    <div className="task" onClick={() => onOpenTask(t.id)} style={{ cursor: 'pointer' }}>
+      <StatusDot status={t.status} />
+      <div className="grow" style={{ minWidth: 0 }}>
+        {nested ? (
+          <>
+            <div className="meta" style={{ marginBottom: 2 }}>
+              <Breadcrumbs
+                project={{ id: project.id, name: project.name, colorHex: project.colorHex }}
+                ancestors={t.ancestors}
+                onProject={onOpenProject}
+                onTask={onOpenTask}
+              />
+            </div>
+            <div className="title-line">{t.title} {showFlag && <PriorityFlag urgent={t.urgent} />}</div>
+          </>
+        ) : (
+          <div className="title-line">{t.title} {showFlag && <PriorityFlag urgent={t.urgent} />}</div>
+        )}
+        <div className="meta"><span className="mono">{fmtHM(t.totalTime)}{t.totalEstimate ? ` / ${fmtHM(t.totalEstimate)}` : ''}</span></div>
+      </div>
+      <button className="icon-btn" onClick={(e) => { e.stopPropagation(); onPlay(t.id); }} aria-label="Play">
+        {t.running ? <Icon.Pause size={14} /> : <Icon.Play size={14} />}
+      </button>
+    </div>
   );
 }

@@ -158,16 +158,27 @@ function MonthHeatmap({ anchor, entries, onPick }: { anchor: Date; entries: Time
           if (!d) return <div key={i} />;
           const t = totals.get(d.toISOString().slice(0, 10)) ?? 0;
           const intensity = t / maxSecs;
+          const isToday = d.toDateString() === new Date().toDateString();
           return (
             <button key={d.toISOString()} onClick={() => onPick(d)} style={{
               aspectRatio: '1',
               borderRadius: 6,
               background: t === 0 ? 'var(--bg-elev-2)' : `color-mix(in oklab, var(--accent) ${Math.round(intensity * 80)}%, var(--bg-elev-2))`,
-              border: 0,
-              display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end',
-              padding: 4, color: t > 0 ? 'rgba(0,0,0,0.78)' : 'var(--text-3)',
+              border: isToday ? '1.5px solid var(--accent)' : 0,
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'stretch', justifyContent: 'space-between',
+              padding: 4,
+              color: t > 0 ? 'rgba(0,0,0,0.78)' : 'var(--text-3)',
               fontSize: 10, fontWeight: 600,
-            }}>{d.getDate()}</button>
+            }}>
+              <span style={{ textAlign: 'right' }}>{d.getDate()}</span>
+              {t > 0 && (
+                <span className="mono" style={{
+                  fontSize: 9, fontWeight: 500, textAlign: 'left',
+                  letterSpacing: '-0.02em',
+                }}>{fmtHM(t)}</span>
+              )}
+            </button>
           );
         })}
       </div>

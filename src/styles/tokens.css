@@ -306,15 +306,17 @@
   box-shadow: 0 6px 18px rgba(255, 122, 69, 0.45);
 }
 
-/* Mini timer bar (when running) */
+/* Mini timer bar (when running) — same horizontal insets as .tabbar .inner
+   (16px) so it sits directly above the tab pill at matching width. The 100px
+   bottom offset = 28px tab-bar bottom padding + 60px pill + 12px breathing gap. */
 .minibar {
   position: absolute;
-  left: 12px; right: 12px;
-  bottom: 88px;
+  left: 16px; right: 16px;
+  bottom: 100px;
   z-index: 25;
   background: var(--bg-elev-2);
   border: 1px solid var(--line-strong);
-  border-radius: 16px;
+  border-radius: 18px;
   padding: 10px 12px;
   display: flex; align-items: center; gap: 10px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
