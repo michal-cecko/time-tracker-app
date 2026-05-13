@@ -1,85 +1,103 @@
 import { useEffect, useState } from 'react';
+import { Icon } from '@/components/ui/Icon';
 import { api } from '@/api/client';
-import type { TimeEntry, WeeklyReport } from '@/api/types';
-import { fmtHM, fmtMoneyCents } from '@/utils/format';
+import type { WeeklyReport } from '@/api/types';
+import { fmtHM } from '@/utils/format';
 
 export function DesktopReports() {
   const [weekly, setWeekly] = useState<WeeklyReport | null>(null);
-  const [entries, setEntries] = useState<TimeEntry[]>([]);
 
   useEffect(() => {
-    (async () => {
-      setWeekly(await api('/reports/weekly'));
-      setEntries(await api('/time-entries'));
-    })();
+    (async () => setWeekly(await api<WeeklyReport>('/reports/weekly')))();
   }, []);
 
-  if (!weekly) return <div>Loading…</div>;
+  if (!weekly) return <div className="dt-page" style={{ color: 'var(--text-3)' }}>Loading…</div>;
 
-  const max = Math.max(...weekly.days.map((d) => d.total), 1);
+  const today = new Date().toISOString().slice(0, 10);
+  const dailyMax = Math.max(...weekly.days.map((d) => d.total), 1);
+  const projects = Object.entries(weekly.perProject)
+    .map(([id, p]) => ({ id, ...p }))
+    .sort((a, b) => b.seconds - a.seconds);
+  const maxP = Math.max(1, ...projects.map((p) => p.seconds));
 
   return (
-    <>
-      <div style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>Reports</div>
-      <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 24 }}>Last 7 days · {weekly.from} → {weekly.to}</div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
-        <Stat label="Tracked" value={fmtHM(weekly.total)} />
-        <Stat label="Sessions" value={String(entries.length)} />
-        <Stat label="Projects" value={String(Object.keys(weekly.perProject).length)} />
-        <Stat label="Avg session" value={fmtHM(entries.length ? Math.round(weekly.total / entries.length) : 0)} />
+    <div className="dt-page">
+      <div className="dt-page-head">
+        <div>
+          <div className="dt-page-title">Reports</div>
+          <div className="dt-page-sub">{weekly.from} — {weekly.to}</div>
+        </div>
+        <div className="dt-page-actions">
+          <button className="dt-btn">7 days <Icon.ChevronDown size={12} /></button>
+          <button className="dt-btn">All projects <Icon.ChevronDown size={12} /></button>
+        </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <div className="card" style={{ padding: 16 }}>
-          <div style={{ fontSize: 11.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16 }}>Daily</div>
-          <div className="bars">
+      <div className="dt-stat-row">
+        <Stat label="Tracked" value={fmtHM(weekly.total)} />
+        <Stat label="Days active" value={String(weekly.days.filter((d) => d.total > 0).length)} sub="this week" />
+        <Stat label="Projects" value={String(projects.length)} sub="with activity" />
+        <Stat label="Avg / day" value={fmtHM(Math.floor(weekly.total / 7))} sub="across 7 days" />
+      </div>
+
+      <div className="dt-cols-2" style={{ marginTop: 20 }}>
+        <div className="dt-section">
+          <div className="dt-section-head"><span>Daily</span></div>
+          <div className="dt-week-chart">
             {weekly.days.map((d) => {
-              const today = d.date === new Date().toISOString().slice(0, 10);
+              const isCurrentDay = d.date === today;
+              const hours = d.total / 3600;
+              const heightPct = Math.max(2, (d.total / dailyMax) * 100);
               return (
-                <div key={d.date} className={`bar ${today ? 'today' : ''}`}>
-                  <div className="total mono">{d.total ? fmtHM(d.total) : ''}</div>
-                  <div style={{ display: 'flex', flexDirection: 'column-reverse', height: `${Math.max(2, (d.total / max) * 100)}%`, gap: 1 }}>
-                    {Object.entries(d.perProject).map(([pid, secs]) => (
-                      <div key={pid} style={{ flex: secs, background: weekly.perProject[pid]?.colorHex ?? 'var(--text-4)', borderRadius: 2 }} />
-                    ))}
+                <div key={d.date} className={`dt-wc-col ${isCurrentDay ? 'today' : ''}`}>
+                  <div className="dt-wc-total mono">{hours > 0 ? `${hours.toFixed(1)}h` : ''}</div>
+                  <div className="dt-wc-bar-wrap">
+                    <div
+                      className="dt-wc-bar"
+                      style={{
+                        height: `${heightPct}%`,
+                        background: isCurrentDay ? 'var(--accent)' : 'var(--text-3)',
+                        opacity: isCurrentDay ? 1 : 0.55,
+                      }}
+                    />
                   </div>
-                  <div className="day">{new Date(d.date + 'T00:00').toLocaleDateString([], { weekday: 'short' }).slice(0, 1)}</div>
+                  <div className="dt-wc-day">{new Date(d.date + 'T00:00').toLocaleDateString([], { weekday: 'short' })}</div>
                 </div>
               );
             })}
           </div>
         </div>
-        <div className="card" style={{ padding: 16 }}>
-          <div style={{ fontSize: 11.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16 }}>By project</div>
-          {Object.entries(weekly.perProject).sort((a, b) => b[1].seconds - a[1].seconds).map(([id, p]) => {
-            const pct = (p.seconds / weekly.total) * 100;
-            return (
-              <div key={id} style={{ padding: '8px 0' }}>
-                <div className="hstack" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span className="hstack" style={{ gap: 8 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 3, background: p.colorHex }} />
-                    <span style={{ fontSize: 13 }}>{p.name}</span>
-                  </span>
-                  <span className="mono">{fmtHM(p.seconds)}</span>
-                </div>
-                <div style={{ height: 4, background: 'var(--bg-elev-2)', borderRadius: 999 }}>
-                  <div style={{ width: `${pct}%`, height: '100%', background: p.colorHex, borderRadius: 999 }} />
+        <div className="dt-section">
+          <div className="dt-section-head"><span>By project</span></div>
+          <div style={{ padding: '4px 14px 14px' }}>
+            {projects.map((p) => (
+              <div key={p.id} className="dt-proj-row">
+                <span className="dt-swatch" style={{ background: p.colorHex }} />
+                <span className="dt-truncate" style={{ flex: 1 }}>{p.name}</span>
+                <span className="mono dt-muted" style={{ fontSize: 11, width: 64, textAlign: 'right' }}>
+                  {(p.seconds / 3600).toFixed(1)}h
+                </span>
+                <div className="dt-proj-bar">
+                  <div style={{ width: `${(p.seconds / maxP) * 100}%`, background: p.colorHex }} />
                 </div>
               </div>
-            );
-          })}
+            ))}
+            {projects.length === 0 && (
+              <div style={{ color: 'var(--text-3)', fontSize: 12 }}>No tracked time this week.</div>
+            )}
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, sub, up }: { label: string; value: string; sub?: string; up?: boolean }) {
   return (
-    <div className="card" style={{ padding: 14 }}>
-      <div style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
-      <div className="mono" style={{ fontSize: 24, fontWeight: 600, marginTop: 6 }}>{value}</div>
+    <div className="dt-stat">
+      <div className="dt-stat-label">{label}</div>
+      <div className="dt-stat-value mono">{value}</div>
+      {sub && <div className={`dt-stat-delta ${up ? 'up' : ''}`}>{sub}</div>}
     </div>
   );
 }

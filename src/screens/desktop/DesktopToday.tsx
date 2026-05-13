@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { StatusDot } from '@/components/ui/Status';
-import { PriorityFlag } from '@/components/ui/PriorityFlag';
-import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 import { api } from '@/api/client';
 import { entries as entriesApi } from '@/api/mutations';
 import { onRealtime } from '@/api/websocket';
 import type { Project, Task, WeeklyReport } from '@/api/types';
-import { fmtHM, fmtDue } from '@/utils/format';
+import { fmtDue, fmtHM } from '@/utils/format';
 
 interface Bucket { project: Project; task: Task; }
 
@@ -16,7 +14,13 @@ function isToday(d: string | null | undefined): boolean {
   return new Date(d).toDateString() === new Date().toDateString();
 }
 
-export function DesktopToday({ onSelectTask, onSelectProject }: { onSelectTask: (id: string) => void; onSelectProject: (id: string) => void }) {
+export function DesktopToday({
+  onSelectTask,
+  onSelectProject,
+}: {
+  onSelectTask: (id: string) => void;
+  onSelectProject: (id: string) => void;
+}) {
   const [urgent, setUrgent] = useState<Bucket[]>([]);
   const [also, setAlso] = useState<Bucket[]>([]);
   const [weekly, setWeekly] = useState<WeeklyReport | null>(null);
@@ -30,9 +34,6 @@ export function DesktopToday({ onSelectTask, onSelectProject }: { onSelectTask: 
     const open = all.filter(({ task }) => !['DONE', 'INVOICED'].includes(task.status));
     setUrgent(open.filter(({ task }) => task.urgent));
 
-    // "Also today" — strict: due today OR currently running. Fallback (when seed
-    // data has no due dates): show in-progress / in-review work so the section
-    // never collapses to nothing on a fresh install.
     const nonUrgent = open.filter(({ task }) => !task.urgent);
     const strict = nonUrgent.filter(({ task }) => isToday(task.dueDate) || task.running);
     const fallback = nonUrgent.filter(({ task }) => ['IN_PROGRESS', 'IN_REVIEW'].includes(task.status));
@@ -49,60 +50,14 @@ export function DesktopToday({ onSelectTask, onSelectProject }: { onSelectTask: 
   const now = new Date();
   const todayKey = now.toISOString().slice(0, 10);
   const todayTracked = weekly?.days.find((d) => d.date === todayKey)?.total ?? 0;
-  const sub = `${now.toLocaleDateString([], { weekday: 'long' })} · ${now.toLocaleDateString([], { month: 'short', day: 'numeric' })} · ${fmtHM(todayTracked)} tracked`;
-
-  const Row = ({ b }: { b: Bucket }) => {
-    return (
-    <div className={`dt-task ${b.task.running ? 'running' : ''}`} onClick={() => onSelectTask(b.task.id)}>
-      <button
-        className="dt-task-status"
-        aria-label="Change status"
-        onClick={(e) => { e.stopPropagation(); }}
-      >
-        <StatusDot status={b.task.status} />
-      </button>
-      <span className="dt-task-title" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, minWidth: 0 }}>
-        <span style={{ fontSize: 11.5, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
-          <Breadcrumbs
-            project={{ id: b.project.id, name: b.project.name, colorHex: b.project.colorHex }}
-            ancestors={b.task.ancestors}
-            onProject={onSelectProject}
-            onTask={onSelectTask}
-          />
-        </span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          {b.task.title}
-          <PriorityFlag urgent={b.task.urgent} />
-        </span>
-      </span>
-      <button
-        className="dt-task-proj"
-        onClick={(e) => { e.stopPropagation(); onSelectProject(b.project.id); }}
-      >
-        <span className="dt-swatch" style={{ background: b.project.colorHex }} />
-        <span>{b.project.initials}</span>
-      </button>
-      {b.task.dueDate && (
-        <span className="dt-task-due">{fmtDue(new Date(b.task.dueDate))}</span>
-      )}
-      <span className="dt-task-time mono">{fmtHM(b.task.totalTime)}{b.task.totalEstimate ? ` / ${fmtHM(b.task.totalEstimate)}` : ''}</span>
-      <button
-        className={`dt-task-play ${b.task.running ? 'running' : ''}`}
-        aria-label={b.task.running ? 'Pause' : 'Play'}
-        onClick={async (e) => {
-          e.stopPropagation();
-          if (b.task.running) await entriesApi.stopTimer();
-          else await entriesApi.startTimer(b.task.id);
-        }}
-      >
-        {b.task.running ? <Icon.Pause size={12} /> : <Icon.Play size={12} />}
-      </button>
-    </div>
-    );
-  };
+  const sub = (
+    <>
+      {now.toLocaleDateString([], { weekday: 'long' })} · {now.toLocaleDateString([], { month: 'short', day: 'numeric' })} · <span className="mono">{fmtHM(todayTracked)}</span> tracked
+    </>
+  );
 
   return (
-    <>
+    <div className="dt-page">
       <div className="dt-page-head">
         <div>
           <div className="dt-page-title">Today</div>
@@ -114,28 +69,100 @@ export function DesktopToday({ onSelectTask, onSelectProject }: { onSelectTask: 
         </div>
       </div>
 
-      {urgent.length > 0 && (
-        <div className="dt-section">
+      <DesktopTaskColumn title="Up next · priority" count={urgent.length} accent>
+        {urgent.map((b) => (
+          <DesktopTaskRow
+            key={b.task.id}
+            task={b.task}
+            project={b.project}
+            onSelect={() => onSelectTask(b.task.id)}
+            onSelectProject={() => onSelectProject(b.project.id)}
+            onToggleTimer={async () => {
+              if (b.task.running) await entriesApi.stopTimer();
+              else await entriesApi.startTimer(b.task.id);
+            }}
+          />
+        ))}
+      </DesktopTaskColumn>
+
+      <div style={{ height: 16 }} />
+
+      <DesktopTaskColumn title="Also today" count={also.length}>
+        {also.map((b) => (
+          <DesktopTaskRow
+            key={b.task.id}
+            task={b.task}
+            project={b.project}
+            onSelect={() => onSelectTask(b.task.id)}
+            onSelectProject={() => onSelectProject(b.project.id)}
+            onToggleTimer={async () => {
+              if (b.task.running) await entriesApi.stopTimer();
+              else await entriesApi.startTimer(b.task.id);
+            }}
+          />
+        ))}
+      </DesktopTaskColumn>
+
+      {weekly && (
+        <div className="dt-section" style={{ marginTop: 22 }}>
           <div className="dt-section-head">
-            <span className="dt-col-title accent">Up next · priority</span>
-            <span className="dt-col-count">{urgent.length}</span>
+            <span>Last 7 days</span>
+            <span className="mono dt-muted">{fmtHM(weekly.total)}</span>
           </div>
-          <div className="dt-col-body">{urgent.map((b) => <Row key={b.task.id} b={b} />)}</div>
+          <WeekChart weekly={weekly} />
         </div>
       )}
+    </div>
+  );
+}
 
-      {also.length > 0 && (
-        <div className="dt-section">
-          <div className="dt-section-head">
-            <span className="dt-col-title">{urgent.length > 0 ? 'Also today' : 'Tasks for today'}</span>
-            <span className="dt-col-count">{also.length}</span>
-          </div>
-          <div className="dt-col-body">{also.map((b) => <Row key={b.task.id} b={b} />)}</div>
-        </div>
-      )}
+function DesktopTaskColumn({
+  title, count, accent, children,
+}: { title: string; count: number; accent?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="dt-col">
+      <div className="dt-col-head">
+        <span className={accent ? 'dt-col-title accent' : 'dt-col-title'}>{title}</span>
+        <span className="dt-col-count">{count}</span>
+      </div>
+      <div className="dt-col-body">{children}</div>
+    </div>
+  );
+}
 
-      {weekly && <WeekChart weekly={weekly} />}
-    </>
+interface RowProps {
+  task: Task;
+  project: Project;
+  onSelect: () => void;
+  onSelectProject: () => void;
+  onToggleTimer: () => Promise<void> | void;
+}
+function DesktopTaskRow({ task, project, onSelect, onSelectProject, onToggleTimer }: RowProps) {
+  const isRunning = !!task.running;
+  return (
+    <div className={`dt-task ${isRunning ? 'running' : ''}`} onClick={onSelect}>
+      <button className="dt-task-status" onClick={(e) => e.stopPropagation()} aria-label="Change status">
+        <StatusDot status={task.status} />
+      </button>
+      <span className="dt-truncate dt-task-title">{task.title}</span>
+      {task.urgent && <Icon.Flag size={11} className="dt-urgent-flag" />}
+      <button className="dt-task-proj" onClick={(e) => { e.stopPropagation(); onSelectProject(); }}>
+        <span className="dt-swatch" style={{ background: project.colorHex }} />
+        <span>{project.initials}</span>
+      </button>
+      {task.dueDate && <span className="dt-task-due">{fmtDue(new Date(task.dueDate))}</span>}
+      <span className="dt-task-time mono">
+        {fmtHM(task.totalTime)}
+        {task.totalEstimate ? <span className="dt-muted"> / {fmtHM(task.totalEstimate)}</span> : null}
+      </span>
+      <button
+        className={`dt-task-play ${isRunning ? 'running' : ''}`}
+        aria-label={isRunning ? 'Pause' : 'Play'}
+        onClick={(e) => { e.stopPropagation(); void onToggleTimer(); }}
+      >
+        {isRunning ? <Icon.Pause size={11} /> : <Icon.Play size={10} />}
+      </button>
+    </div>
   );
 }
 
@@ -143,32 +170,28 @@ function WeekChart({ weekly }: { weekly: WeeklyReport }) {
   const max = Math.max(...weekly.days.map((d) => d.total), 1);
   const today = new Date().toISOString().slice(0, 10);
   return (
-    <div className="dt-section">
-      <div className="dt-section-head">
-        <span className="dt-col-title">Last 7 days</span>
-        <span className="dt-col-count mono">{fmtHM(weekly.total)}</span>
-      </div>
-      <div className="dt-week-chart">
-        {weekly.days.map((d) => {
-          const isToday = d.date === today;
-          const heightPct = Math.max(2, (d.total / max) * 100);
-          return (
-            <div key={d.date} className={`dt-wc-col ${isToday ? 'today' : ''}`}>
-              <div className="dt-wc-total mono">{d.total ? fmtHM(d.total) : ''}</div>
-              <div className="dt-wc-bar-wrap">
-                <div
-                  className="dt-wc-bar"
-                  style={{
-                    height: `${heightPct}%`,
-                    background: isToday ? 'var(--accent)' : 'color-mix(in oklab, var(--text-4) 60%, transparent)',
-                  }}
-                />
-              </div>
-              <div className="dt-wc-day">{new Date(d.date + 'T00:00').toLocaleDateString([], { weekday: 'short' })}</div>
+    <div className="dt-week-chart">
+      {weekly.days.map((d) => {
+        const isCurrentDay = d.date === today;
+        const hours = d.total / 3600;
+        const heightPct = Math.max(2, (d.total / max) * 100);
+        return (
+          <div key={d.date} className={`dt-wc-col ${isCurrentDay ? 'today' : ''}`}>
+            <div className="dt-wc-total mono">{hours > 0 ? `${hours.toFixed(1)}h` : ''}</div>
+            <div className="dt-wc-bar-wrap">
+              <div
+                className="dt-wc-bar"
+                style={{
+                  height: `${heightPct}%`,
+                  background: isCurrentDay ? 'var(--accent)' : 'var(--text-3)',
+                  opacity: isCurrentDay ? 1 : 0.55,
+                }}
+              />
             </div>
-          );
-        })}
-      </div>
+            <div className="dt-wc-day">{new Date(d.date + 'T00:00').toLocaleDateString([], { weekday: 'short' })}</div>
+          </div>
+        );
+      })}
     </div>
   );
 }

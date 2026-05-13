@@ -1,14 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
-import { StatusPill, StatusPicker } from '@/components/ui/Status';
-import { PriorityFlag } from '@/components/ui/PriorityFlag';
-import { ProgressBar } from '@/components/ui/ProgressBar';
+import { StatusDot, StatusPill, StatusPicker } from '@/components/ui/Status';
 import { ActionSheet } from '@/components/ui/sheets/ActionSheet';
 import { ConfirmSheet } from '@/components/ui/sheets/ConfirmSheet';
 import { EditTaskSheet } from '@/components/ui/sheets/EditTaskSheet';
 import { MoveTaskSheet } from '@/components/ui/sheets/MoveTaskSheet';
 import { EditEntrySheet } from '@/components/ui/sheets/EditEntrySheet';
-import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 import { RichEditor, type RichDoc } from '@/components/ui/RichEditor';
 import { useDebouncedCallback } from '@/utils/debounce';
 import { api } from '@/api/client';
@@ -51,6 +48,7 @@ export function Inspector({
     setEntries(es);
     setProject(p);
   };
+
   useEffect(() => {
     if (!taskId) { setTask(null); setProject(null); setEntries([]); return; }
     load(taskId);
@@ -67,126 +65,202 @@ export function Inspector({
 
   if (!task) {
     return (
-      <div className="dt-empty">
-        <Icon.Folder size={28} />
-        <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--text-3)' }}>Select a task</div>
-      </div>
+      <aside className="dt-inspector empty">
+        <div className="dt-empty">
+          <Icon.Folder size={28} />
+          <div style={{ marginTop: 12, fontSize: 13, color: 'var(--text-3)' }}>Select a task</div>
+          <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 4 }}>Open its detail in the inspector</div>
+        </div>
+      </aside>
     );
   }
 
   const isRunning = !!running && running.taskId === task.id;
   const tracked = isRunning ? elapsed : task.totalTime;
-  const over = task.estimateSeconds ? tracked > task.estimateSeconds : false;
-  const pct = task.estimateSeconds ? (tracked / task.estimateSeconds) * 100 : 0;
+  const est = task.estimateSeconds;
+  const pct = est ? (tracked / est) * 100 : 0;
+  const over = est ? tracked > est : false;
 
   return (
-    <div style={{ padding: 18 }}>
-      <div className="hstack" style={{ marginBottom: 10 }}>
-        <span className="spacer" />
-        <button className="icon-btn" onClick={() => setActionsOpen(true)} aria-label="Task actions"><Icon.More size={14} /></button>
-        <button className="icon-btn" onClick={onClear} aria-label="Close"><Icon.X size={14} /></button>
-      </div>
-      {project && (
-        <div style={{ marginBottom: 6, fontSize: 11.5 }}>
-          <Breadcrumbs
-            project={{ id: project.id, name: project.name, colorHex: project.colorHex }}
-            ancestors={task.ancestors}
-            onProject={onSelectProject}
-            onTask={onSelectTask}
-          />
+    <aside className="dt-inspector">
+      <div className="dt-insp-head">
+        <span className="dt-muted" style={{ fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {project && (
+            <button
+              className="dt-ghost"
+              onClick={() => onSelectProject?.(project.id)}
+              style={{ padding: 0, gap: 6, display: 'inline-flex', alignItems: 'center', color: 'var(--text-3)' }}
+            >
+              <span className="dt-swatch" style={{ background: project.colorHex }} />
+              {project.name}
+            </button>
+          )}
+        </span>
+        <div style={{ display: 'inline-flex', gap: 4 }}>
+          <button className="dt-ghost" onClick={() => setActionsOpen(true)} aria-label="Task actions"><Icon.More size={12} /></button>
+          <button className="dt-ghost" onClick={onClear} aria-label="Close">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+              <path d="M6 6l12 12M18 6l-6.5 6.5L6 18" />
+            </svg>
+          </button>
         </div>
-      )}
-      <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 8 }}>{task.title} <PriorityFlag urgent={task.urgent} /></div>
-      <div className="hstack" style={{ gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-        <StatusPill status={task.status} onClick={() => setPicker(true)} />
-        {task.dueDate && <span className="pill"><Icon.Calendar size={10} />{new Date(task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>}
       </div>
 
-      <div className="card hi" style={{ padding: 14, marginBottom: 14 }}>
-        <div style={{ fontSize: 10.5, color: isRunning ? 'var(--accent)' : 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{isRunning ? 'TRACKING NOW' : 'TIME'}</div>
-        <div className="mono" style={{ fontSize: 28, fontWeight: 600, color: isRunning ? 'var(--accent)' : 'var(--text)', marginTop: 6, marginBottom: 10 }}>{fmtHMS(tracked)}</div>
-        {task.estimateSeconds && (
-          <>
-            <ProgressBar pct={pct} over={over} />
-            <div className="hstack" style={{ justifyContent: 'space-between', fontSize: 11, color: 'var(--text-3)', marginTop: 6 }}>
-              <span>{Math.round(pct)}% of {fmtHM(task.estimateSeconds)}</span>
+      <div className="dt-insp-body">
+        <div className="dt-insp-title">{task.title}</div>
+
+        <div className="dt-insp-chips">
+          <StatusPill status={task.status} onClick={() => setPicker(true)} />
+          {task.urgent && (
+            <span className="dt-chip urgent">
+              <Icon.Flag size={10} /> Urgent
+            </span>
+          )}
+          {task.dueDate && (
+            <span className="dt-chip">
+              <Icon.Calendar size={10} /> {new Date(task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+            </span>
+          )}
+          {task.ancestors && task.ancestors.length > 0 && (
+            <span className="dt-chip" title="Parent">
+              {task.ancestors[task.ancestors.length - 1].title}
+            </span>
+          )}
+        </div>
+
+        <div className="dt-insp-timer">
+          <div className="dt-insp-timer-head">
+            <span className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
+              {isRunning ? 'Tracking now' : 'Time'}
+            </span>
+            <span className="mono dt-muted" style={{ fontSize: 11 }}>
+              {est ? `${Math.round(pct)}% of estimate` : 'no estimate'}
+            </span>
+          </div>
+          <div
+            className="dt-insp-timer-big mono"
+            style={{ color: isRunning ? 'var(--accent)' : 'var(--text)' }}
+          >
+            {isRunning ? fmtHMS(tracked) : fmtHM(tracked)}
+            {est ? <span className="dt-muted" style={{ fontSize: 14 }}> / {fmtHM(est)}</span> : null}
+          </div>
+          {est ? (
+            <div className="dt-progress">
+              <div style={{ width: `${Math.min(100, pct)}%`, background: over ? 'var(--st-return)' : 'var(--accent)' }} />
             </div>
-          </>
+          ) : null}
+          <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+            <button
+              className="dt-btn primary"
+              style={{ flex: 1, justifyContent: 'center' }}
+              onClick={async () => {
+                if (isRunning) await entriesApi.stopTimer();
+                else await entriesApi.startTimer(task.id);
+              }}
+            >
+              {isRunning ? <><Icon.Pause size={12} /> Pause</> : <><Icon.Play size={11} /> Start timer</>}
+            </button>
+            <button className="dt-btn"><Icon.Plus size={11} /> Log</button>
+          </div>
+        </div>
+
+        {(task.billingMode !== 'NONE' || task.earnedSoFarCents != null) && (
+          <div className="dt-insp-section">
+            <div className="dt-insp-sec-head">Billing</div>
+            <div className="dt-bill">
+              <div>
+                <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
+                  {task.billingMode === 'TASK_PRICE' ? 'Task price' : task.billingMode === 'HOURLY_RATE' ? 'Hourly rate' : 'Rolled up'}
+                </div>
+                <div className="mono" style={{ fontSize: 18, fontWeight: 600 }}>
+                  {fmtMoneyCents(task.billingMode === 'TASK_PRICE' ? task.taskPriceCents : task.hourlyRateCents)}
+                  {task.billingMode === 'HOURLY_RATE' ? '/h' : ''}
+                </div>
+              </div>
+              {(task.earnedSoFarCents ?? 0) > 0 && (
+                <div style={{ textAlign: 'right' }}>
+                  <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
+                    Earned
+                  </div>
+                  <div className="mono" style={{ fontSize: 18, fontWeight: 600, color: 'var(--st-done)' }}>
+                    {fmtMoneyCents(task.earnedSoFarCents)}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         )}
-        <button className="btn primary" style={{ marginTop: 10, width: '100%', justifyContent: 'center' }} onClick={async () => {
-          if (isRunning) await entriesApi.stopTimer();
-          else await entriesApi.startTimer(task.id);
-        }}>
-          {isRunning ? <><Icon.Pause size={14} />Pause</> : <><Icon.Play size={14} />Start timer</>}
-        </button>
-      </div>
 
-      {(task.billingMode !== 'NONE' || task.earnedSoFarCents != null) && (
-        <div className="card" style={{ padding: 14, marginBottom: 14 }}>
-          <div style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Billing</div>
-          {task.billingMode !== 'NONE' ? (
-            <div className="hstack" style={{ justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13 }}>{task.billingMode === 'HOURLY_RATE' ? 'Hourly rate' : 'Fixed price'}</span>
-              <span className="mono">{fmtMoneyCents(task.billingMode === 'HOURLY_RATE' ? task.hourlyRateCents : task.taskPriceCents)}</span>
+        {task.children && task.children.length > 0 && (
+          <div className="dt-insp-section">
+            <div className="dt-insp-sec-head">
+              Subtasks <span className="dt-muted">· {task.children.length}</span>
             </div>
-          ) : (
-            <div style={{ fontSize: 12, color: 'var(--text-3)' }}>Rolled up from subtasks</div>
-          )}
-          <div className="hstack" style={{ justifyContent: 'space-between', marginTop: 8, fontSize: 12, color: 'var(--text-3)' }}>
-            <span>Earned</span><span className="mono" style={{ color: 'var(--st-done)' }}>{fmtMoneyCents(task.earnedSoFarCents)}</span>
-          </div>
-          {task.projectedTotalCents != null && (
-            <div className="hstack" style={{ justifyContent: 'space-between', marginTop: 4, fontSize: 12, color: 'var(--text-3)' }}>
-              <span>Projected</span><span className="mono">{fmtMoneyCents(task.projectedTotalCents)}</span>
+            <div className="dt-sub-list">
+              {task.children.map((c) => (
+                <div
+                  key={c.id}
+                  className="dt-sub-item"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => onSelectTask?.(c.id)}
+                >
+                  <StatusDot status={c.status} />
+                  <span className="dt-truncate" style={{ flex: 1 }}>{c.title}</span>
+                  <span className="mono dt-muted" style={{ fontSize: 11 }}>{fmtHM(c.totalTime)}</span>
+                </div>
+              ))}
             </div>
-          )}
-          <div className="hstack" style={{ justifyContent: 'space-between', marginTop: 4, fontSize: 12, color: 'var(--text-3)' }}>
-            <span>Effective</span><span className="mono">{fmtMoneyCents(task.effectiveRateCents)}/h</span>
+          </div>
+        )}
+
+        <div className="dt-insp-section">
+          <div className="dt-insp-sec-head">
+            Time entries <span className="dt-muted">· {entries.length}</span>
+          </div>
+          <div className="dt-entries">
+            {entries.length === 0 && (
+              <div className="dt-muted" style={{ padding: 12, textAlign: 'center', fontSize: 11 }}>No entries yet</div>
+            )}
+            {entries.slice(0, 8).map((e) => {
+              const live = !e.endedAt;
+              const dur = e.endedAt ? e.durationSeconds : Math.max(0, Math.floor((Date.now() - new Date(e.startedAt).getTime()) / 1000));
+              return (
+                <div key={e.id} className="dt-entry">
+                  {live && <span className="dt-live-dot" />}
+                  <span
+                    className="mono"
+                    style={{ fontSize: 13, fontWeight: 500, color: live ? 'var(--accent)' : 'var(--text)', width: 56 }}
+                  >{fmtHM(dur)}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="dt-muted" style={{ fontSize: 11 }}>
+                      {fmtClock(new Date(e.startedAt))}{e.endedAt ? ` – ${fmtClock(new Date(e.endedAt))}` : live ? ' · running' : ''}
+                    </div>
+                    {e.note && <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{e.note}</div>}
+                  </div>
+                  {e.manual && <span className="dt-tag">manual</span>}
+                  <button className="dt-ghost" onClick={() => setEntryEdit(e)} aria-label="Edit"><Icon.Edit size={11} /></button>
+                  <button className="dt-ghost" onClick={() => setEntryDelete(e)} aria-label="Delete"><Icon.Trash size={11} /></button>
+                </div>
+              );
+            })}
           </div>
         </div>
-      )}
 
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Description</div>
-        <DescriptionEditor task={task} />
+        <div className="dt-insp-section">
+          <div className="dt-insp-sec-head">Description</div>
+          <div style={{ padding: '0 14px 14px' }}>
+            <DescriptionEditor task={task} />
+          </div>
+        </div>
       </div>
-
-      {task.children.length > 0 && (
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Subtasks · {task.children.length}</div>
-          <div className="card">
-            {task.children.map((c) => (
-              <div key={c.id} className="task" style={{ minHeight: 40 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.running ? 'var(--accent)' : 'var(--text-4)' }} />
-                <div className="grow"><div className="title-line">{c.title}</div></div>
-                <span className="mono" style={{ fontSize: 11 }}>{fmtHM(c.totalTime)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {entries.length > 0 && (
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Entries · {entries.length}</div>
-          <div className="card">
-            {entries.slice(0, 8).map((e) => (
-              <div key={e.id} className="task" style={{ minHeight: 40 }}>
-                <span className="mono" style={{ fontSize: 12, color: !e.endedAt ? 'var(--accent)' : 'var(--text)' }}>{fmtHM(e.endedAt ? e.durationSeconds : Math.floor((Date.now() - new Date(e.startedAt).getTime()) / 1000))}</span>
-                <div className="grow"><div className="meta mono">{fmtClock(new Date(e.startedAt))} – {e.endedAt ? fmtClock(new Date(e.endedAt)) : 'now'}</div></div>
-                {e.manual && <span className="pill" style={{ height: 18, fontSize: 9 }}>M</span>}
-                <button className="icon-btn" onClick={() => setEntryEdit(e)} aria-label="Edit"><Icon.Edit size={12} /></button>
-                <button className="icon-btn" onClick={() => setEntryDelete(e)} aria-label="Delete"><Icon.Trash size={12} /></button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {picker && (
-        <StatusPicker current={task.status} onPick={async (s) => { await tasksApi.setStatus(task.id, s); }} onClose={() => setPicker(false)} />
+        <StatusPicker
+          current={task.status}
+          onPick={async (s) => { await tasksApi.setStatus(task.id, s); }}
+          onClose={() => setPicker(false)}
+        />
       )}
-
       {actionsOpen && (
         <ActionSheet
           title={task.title}
@@ -200,7 +274,6 @@ export function Inspector({
           onClose={() => setActionsOpen(false)}
         />
       )}
-
       {editOpen && (
         <EditTaskSheet
           task={task}
@@ -210,23 +283,18 @@ export function Inspector({
           onSaved={() => taskId && load(taskId)}
         />
       )}
-
       {moveOpen && (
         <MoveTaskSheet task={task} onClose={() => setMoveOpen(false)} onMoved={() => taskId && load(taskId)} />
       )}
-
       {confirmDelete && (
         <ConfirmSheet
           title="Delete task?"
           message={`"${task.title}" and any subtasks + time entries will be permanently removed.`}
           confirmLabel="Delete"
-          onConfirm={async () => {
-            try { await tasksApi.remove(task.id); onClear(); } catch {}
-          }}
+          onConfirm={async () => { try { await tasksApi.remove(task.id); onClear(); } catch {} }}
           onClose={() => setConfirmDelete(false)}
         />
       )}
-
       {entryEdit && (
         <EditEntrySheet
           entry={entryEdit}
@@ -234,25 +302,21 @@ export function Inspector({
           onDeleteRequest={() => setEntryDelete(entryEdit)}
         />
       )}
-
       {entryDelete && (
         <ConfirmSheet
           title="Delete entry?"
           message="This time entry will be permanently removed."
           confirmLabel="Delete"
-          onConfirm={async () => {
-            try { await entriesApi.remove(entryDelete.id); if (taskId) load(taskId); } catch {}
-          }}
+          onConfirm={async () => { try { await entriesApi.remove(entryDelete.id); if (taskId) load(taskId); } catch {} }}
           onClose={() => setEntryDelete(null)}
         />
       )}
-    </div>
+    </aside>
   );
 }
 
 function DescriptionEditor({ task }: { task: Task }) {
   const [local, setLocal] = useState<RichDoc | null>((task.description as RichDoc | null) ?? null);
-  // Re-seed when switching tasks (component is reused inside Inspector).
   useEffect(() => { setLocal((task.description as RichDoc | null) ?? null); }, [task.id]);
   const save = useDebouncedCallback((doc: RichDoc) => {
     void tasksApi.update(task.id, { description: doc as Record<string, unknown> });
