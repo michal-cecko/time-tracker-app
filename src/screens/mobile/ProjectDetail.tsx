@@ -10,7 +10,7 @@ import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import { projects as projectsApi } from '@/api/mutations';
 import type { Project, Task, Status } from '@/api/types';
-import { fmtHM } from '@/utils/format';
+import { fmtHM, fmtMoneyCents } from '@/utils/format';
 import { useNav } from '@/state/stack';
 
 export function ProjectDetailScreen({ id, onBack }: { id: string; onBack: () => void }) {
@@ -86,6 +86,34 @@ export function ProjectDetailScreen({ id, onBack }: { id: string; onBack: () => 
               <div className="mono" style={{ fontSize: 24, fontWeight: 600, marginTop: 4 }}>{project.openTaskCount}</div>
             </div>
           </div>
+          {project.earnedCents != null && (
+            <>
+              <div className="hstack" style={{ gap: 10, marginTop: 10 }}>
+                <div className="card hi" style={{ padding: 14, flex: 1 }}>
+                  <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Earned</div>
+                  <div className="mono" style={{ fontSize: 22, fontWeight: 600, marginTop: 4, color: 'var(--st-done)' }}>{fmtMoneyCents(project.earnedCents)}</div>
+                </div>
+                {project.projectedCents != null && (
+                  <div className="card hi" style={{ padding: 14, flex: 1 }}>
+                    <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Projected</div>
+                    <div className="mono" style={{ fontSize: 22, fontWeight: 600, marginTop: 4 }}>{fmtMoneyCents(project.projectedCents)}</div>
+                  </div>
+                )}
+              </div>
+              <div className="hstack" style={{ gap: 10, marginTop: 10 }}>
+                <div className="card hi" style={{ padding: 14, flex: 1 }}>
+                  <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Last 30 days</div>
+                  <div className="mono" style={{ fontSize: 22, fontWeight: 600, marginTop: 4, color: 'var(--st-done)' }}>{fmtMoneyCents(project.earnedLast30dCents ?? 0)}</div>
+                </div>
+                {project.effectiveRateCents != null && (
+                  <div className="card hi" style={{ padding: 14, flex: 1 }}>
+                    <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Effective rate</div>
+                    <div className="mono" style={{ fontSize: 22, fontWeight: 600, marginTop: 4 }}>{fmtMoneyCents(project.effectiveRateCents)}<span style={{ fontSize: 13, color: 'var(--text-3)', fontWeight: 500 }}>/h</span></div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="section">

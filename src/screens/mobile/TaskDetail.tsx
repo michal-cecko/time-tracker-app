@@ -204,21 +204,28 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
                 />
               </div>
             )}
-            {(billingDraft.mode !== 'NONE') && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 10 }}>
-                <div>
-                  <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Effective</div>
-                  <div className="mono" style={{ fontSize: 16, fontWeight: 600 }}>{fmtMoneyCents(task.effectiveRateCents)}{billingDraft.mode === 'TASK_PRICE' ? '/h' : '/h'}</div>
+            {(billingDraft.mode !== 'NONE' || task.earnedSoFarCents != null) && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Effective</div>
+                    <div className="mono" style={{ fontSize: 16, fontWeight: 600 }}>{fmtMoneyCents(task.effectiveRateCents)}/h</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Earned</div>
+                    <div className="mono" style={{ fontSize: 16, fontWeight: 600, color: 'var(--st-done)' }}>{fmtMoneyCents(task.earnedSoFarCents)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Projected</div>
+                    <div className="mono" style={{ fontSize: 16, fontWeight: 600 }}>{fmtMoneyCents(task.projectedTotalCents)}</div>
+                  </div>
                 </div>
-                <div>
-                  <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Earned</div>
-                  <div className="mono" style={{ fontSize: 16, fontWeight: 600 }}>{fmtMoneyCents(task.earnedSoFarCents)}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Projected</div>
-                  <div className="mono" style={{ fontSize: 16, fontWeight: 600 }}>{fmtMoneyCents(task.projectedTotalCents)}</div>
-                </div>
-              </div>
+                {billingDraft.mode === 'NONE' && task.earnedSoFarCents != null && (
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 8 }}>
+                    Rolled up from subtasks
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../AuthContext';
+import { LogoTile } from '@/components/brand/Logo';
+import { api } from '@/api/client';
 
 export function Login({ onNav }: { onNav: (k: 'signup' | 'forgot') => void }) {
   const { login } = useAuth();
@@ -8,6 +10,17 @@ export function Login({ onNav }: { onNav: (k: 'signup' | 'forgot') => void }) {
   const [stay, setStay] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Default closed — match the backend default. /auth/config flips it on if open.
+  const [signupAllowed, setSignupAllowed] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const cfg = await api<{ registrationEnabled: boolean }>('/auth/config', { auth: false });
+        setSignupAllowed(!!cfg.registrationEnabled);
+      } catch { /* if /auth/config 404s on old API, keep signup hidden */ }
+    })();
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,7 +32,7 @@ export function Login({ onNav }: { onNav: (k: 'signup' | 'forgot') => void }) {
 
   return (
     <div className="auth-shell">
-      <div className="auth-logo">L</div>
+      <LogoTile size={72} />
       <div className="auth-title">Lapse</div>
       <div className="auth-sub">Time, well spent.</div>
 
@@ -42,10 +55,12 @@ export function Login({ onNav }: { onNav: (k: 'signup' | 'forgot') => void }) {
           <button type="button" className="auth-link" onClick={() => onNav('forgot')}>Forgot?</button>
         </div>
         <button type="submit" className="btn primary lg" disabled={busy}>{busy ? 'Logging in…' : 'Log in'}</button>
-        <div className="row" style={{ marginTop: 16, justifyContent: 'center' }}>
-          <span style={{ color: 'var(--text-3)' }}>New to Lapse?</span>
-          <button type="button" className="auth-link" onClick={() => onNav('signup')}>Create account</button>
-        </div>
+        {signupAllowed && (
+          <div className="row" style={{ marginTop: 16, justifyContent: 'center' }}>
+            <span style={{ color: 'var(--text-3)' }}>New to Lapse?</span>
+            <button type="button" className="auth-link" onClick={() => onNav('signup')}>Create account</button>
+          </div>
+        )}
       </form>
     </div>
   );

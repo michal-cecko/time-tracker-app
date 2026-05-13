@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { apiAuth } from '@/api/client';
+import { LogoTile } from '@/components/brand/Logo';
 
 export function Forgot({ onNav, onSent }: { onNav: (k: 'login') => void; onSent: (email: string) => void }) {
   const [email, setEmail] = useState('');
@@ -19,7 +20,7 @@ export function Forgot({ onNav, onSent }: { onNav: (k: 'login') => void; onSent:
 
   return (
     <div className="auth-shell">
-      <div className="auth-logo">L</div>
+      <LogoTile size={72} />
       <div className="auth-title">Reset password</div>
       <div className="auth-sub">We'll email you a reset link.</div>
       <form className="auth-form" onSubmit={submit}>

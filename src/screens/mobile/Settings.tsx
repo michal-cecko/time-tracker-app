@@ -3,16 +3,31 @@ import { Icon } from '@/components/ui/Icon';
 import { api } from '@/api/client';
 import type { Settings, User } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
+import { useTweaks, type Theme } from '@/state/tweaks';
+
+const ACCENT_OPTIONS = ['#FF7A45', '#4A7EFF', '#34C270', '#A464D9', '#E5B341', '#E54336'];
 
 export function SettingsScreen({ onBack }: { onBack: () => void }) {
   const [me, setMe] = useState<(User & { settings: Settings }) | null>(null);
   const { logout } = useAuth();
+  const tweaks = useTweaks();
 
   useEffect(() => { (async () => setMe(await api('/me')))(); }, []);
 
   const patch = async (p: Partial<Settings>) => {
     await api('/me/settings', { method: 'PATCH', body: p });
     setMe((m) => m ? { ...m, settings: { ...m.settings, ...p } } : m);
+  };
+
+  // Local-first appearance writes — flip the UI instantly via tweaks store
+  // and persist to the server in the background.
+  const changeTheme = async (t: Theme) => {
+    tweaks.set({ theme: t });
+    try { await patch({ theme: t }); } catch {}
+  };
+  const changeAccent = async (hex: string) => {
+    tweaks.set({ accentHex: hex });
+    try { await patch({ accentHex: hex }); } catch {}
   };
 
   if (!me) return <div className="scroll" style={{ padding: 60 }}>Loading…</div>;
@@ -38,6 +53,46 @@ export function SettingsScreen({ onBack }: { onBack: () => void }) {
             <div>
               <div style={{ fontSize: 15, fontWeight: 600 }}>{me.name}</div>
               <div style={{ fontSize: 12, color: 'var(--text-3)' }}>{me.email} · {me.plan}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="section">
+          <div className="section-head"><span>Appearance</span></div>
+          <div className="card" style={{ padding: 14 }}>
+            <div style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 8 }}>Theme</div>
+            <div className="hstack" style={{ gap: 6 }}>
+              {(['dark', 'bright', 'system'] as Theme[]).map((t) => (
+                <button
+                  key={t}
+                  className="seg-btn"
+                  onClick={() => changeTheme(t)}
+                  style={{
+                    flex: 1, height: 36,
+                    background: tweaks.theme === t ? 'var(--accent-tint)' : 'var(--bg-elev-2)',
+                    color: tweaks.theme === t ? 'var(--accent)' : 'var(--text-2)',
+                    borderRadius: 10, fontSize: 13, fontWeight: 500,
+                  }}
+                >
+                  {t === 'dark' ? 'Dark' : t === 'bright' ? 'Bright' : 'System'}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, margin: '18px 0 8px' }}>Accent</div>
+            <div className="hstack" style={{ gap: 10 }}>
+              {ACCENT_OPTIONS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => changeAccent(c)}
+                  style={{
+                    width: 32, height: 32, borderRadius: 10, background: c, border: 0,
+                    outline: c.toLowerCase() === tweaks.accentHex.toLowerCase() ? '2px solid var(--text)' : '2px solid transparent',
+                    outlineOffset: c.toLowerCase() === tweaks.accentHex.toLowerCase() ? 2 : 0,
+                  }}
+                  aria-label={`Accent ${c}`}
+                />
+              ))}
             </div>
           </div>
         </div>

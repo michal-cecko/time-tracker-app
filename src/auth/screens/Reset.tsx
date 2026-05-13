@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { apiAuth } from '@/api/client';
+import { LogoTile } from '@/components/brand/Logo';
 
 function strength(pw: string): { score: 0 | 1 | 2 | 3 | 4; label: string; klass: string } {
   let s = 0;
@@ -31,7 +32,7 @@ export function Reset({ onDone, token }: { onDone: () => void; token: string }) 
 
   return (
     <div className="auth-shell">
-      <div className="auth-logo">L</div>
+      <LogoTile size={72} />
       <div className="auth-title">Set a new password</div>
       <div className="auth-sub">At least 8 characters with a number.</div>
       <form className="auth-form" onSubmit={submit}>

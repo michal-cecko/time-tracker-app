@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../AuthContext';
+import { LogoTile } from '@/components/brand/Logo';
 
 export function Signup({ onNav }: { onNav: (k: 'login') => void }) {
   const { signup } = useAuth();
@@ -19,7 +20,7 @@ export function Signup({ onNav }: { onNav: (k: 'login') => void }) {
 
   return (
     <div className="auth-shell">
-      <div className="auth-logo">L</div>
+      <LogoTile size={72} />
       <div className="auth-title">Create account</div>
       <div className="auth-sub">Start tracking in under a minute.</div>
 

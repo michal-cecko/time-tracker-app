@@ -3,7 +3,6 @@ import { AppHeader } from '@/components/ui/AppHeader';
 import { Icon } from '@/components/ui/Icon';
 import { StatusDot } from '@/components/ui/Status';
 import { PriorityFlag } from '@/components/ui/PriorityFlag';
-import { OfflineChip } from '@/components/ui/OfflineChip';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
@@ -106,9 +105,8 @@ export function TodayScreen() {
         sub={sub}
         right={
           <>
-            <OfflineChip queued={0} />
             <button className="icon-btn" onClick={() => push({ kind: 'search' })} aria-label="Search"><Icon.Search /></button>
-            <button className="icon-btn" onClick={() => push({ kind: 'tweaks' })} aria-label="Tweaks"><Icon.Tweaks /></button>
+            <button className="icon-btn" onClick={() => push({ kind: 'settings' })} aria-label="Settings"><Icon.Settings /></button>
           </>
         }
       />

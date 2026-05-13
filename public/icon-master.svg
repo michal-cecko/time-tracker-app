@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Rounded-square background (Lapse warm-near-black) -->
+  <rect width="1024" height="1024" rx="224" fill="#100f0d"/>
+  <!-- Stopwatch art from the prototype, scaled up from 160×170 → centered in 1024 -->
+  <g transform="translate(192 128) scale(4.25)">
+    <!-- crown -->
+    <rect x="68" y="6" width="24" height="14" rx="3" fill="#f3efe9"/>
+    <rect x="74" y="18" width="12" height="8" fill="#f3efe9"/>
+    <!-- side buttons -->
+    <rect x="14" y="32" width="16" height="10" rx="2" fill="#f3efe9" transform="rotate(-30 22 37)"/>
+    <rect x="130" y="32" width="16" height="10" rx="2" fill="#f3efe9" transform="rotate(30 138 37)"/>
+    <!-- face ring -->
+    <circle cx="80" cy="95" r="62" stroke="#f3efe9" stroke-width="6" fill="none"/>
+    <!-- tick marks -->
+    <g stroke="rgba(243,239,233,0.32)" stroke-linecap="round">
+      <line x1="80"   y1="47"     x2="80"     y2="39"     stroke-width="3.2"/>
+      <line x1="105.5" y1="50.83" x2="108"    y2="46.5"  stroke-width="1.6"/>
+      <line x1="124.17" y1="69.5" x2="128.5" y2="67"     stroke-width="1.6"/>
+      <line x1="128"  y1="95"     x2="136"    y2="95"     stroke-width="3.2"/>
+      <line x1="124.17" y1="120.5" x2="128.5" y2="123"   stroke-width="1.6"/>
+      <line x1="105.5" y1="139.17" x2="108"   y2="143.5" stroke-width="1.6"/>
+      <line x1="80"   y1="143"    x2="80"     y2="151"    stroke-width="3.2"/>
+      <line x1="54.5" y1="139.17" x2="52"     y2="143.5" stroke-width="1.6"/>
+      <line x1="35.83" y1="120.5" x2="31.5"   y2="123"   stroke-width="1.6"/>
+      <line x1="32"   y1="95"     x2="24"     y2="95"     stroke-width="3.2"/>
+      <line x1="35.83" y1="69.5"  x2="31.5"   y2="67"    stroke-width="1.6"/>
+      <line x1="54.5" y1="50.83"  x2="52"     y2="46.5"  stroke-width="1.6"/>
+    </g>
+    <!-- second hand (orange) -->
+    <line x1="80" y1="95" x2="118" y2="60" stroke="#ff7a45" stroke-width="6" stroke-linecap="round"/>
+    <!-- center dot -->
+    <circle cx="80" cy="95" r="6" fill="#f3efe9"/>
+    <circle cx="80" cy="95" r="2.5" fill="#ff7a45"/>
+  </g>
+</svg>

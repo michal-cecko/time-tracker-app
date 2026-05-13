@@ -91,16 +91,25 @@ export function Inspector({ taskId, onClear }: { taskId: string | null; onClear:
         </button>
       </div>
 
-      {task.billingMode !== 'NONE' && (
+      {(task.billingMode !== 'NONE' || task.earnedSoFarCents != null) && (
         <div className="card" style={{ padding: 14, marginBottom: 14 }}>
           <div style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Billing</div>
-          <div className="hstack" style={{ justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 13 }}>{task.billingMode === 'HOURLY_RATE' ? 'Hourly rate' : 'Fixed price'}</span>
-            <span className="mono">{fmtMoneyCents(task.billingMode === 'HOURLY_RATE' ? task.hourlyRateCents : task.taskPriceCents)}</span>
-          </div>
+          {task.billingMode !== 'NONE' ? (
+            <div className="hstack" style={{ justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13 }}>{task.billingMode === 'HOURLY_RATE' ? 'Hourly rate' : 'Fixed price'}</span>
+              <span className="mono">{fmtMoneyCents(task.billingMode === 'HOURLY_RATE' ? task.hourlyRateCents : task.taskPriceCents)}</span>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--text-3)' }}>Rolled up from subtasks</div>
+          )}
           <div className="hstack" style={{ justifyContent: 'space-between', marginTop: 8, fontSize: 12, color: 'var(--text-3)' }}>
-            <span>Earned</span><span className="mono">{fmtMoneyCents(task.earnedSoFarCents)}</span>
+            <span>Earned</span><span className="mono" style={{ color: 'var(--st-done)' }}>{fmtMoneyCents(task.earnedSoFarCents)}</span>
           </div>
+          {task.projectedTotalCents != null && (
+            <div className="hstack" style={{ justifyContent: 'space-between', marginTop: 4, fontSize: 12, color: 'var(--text-3)' }}>
+              <span>Projected</span><span className="mono">{fmtMoneyCents(task.projectedTotalCents)}</span>
+            </div>
+          )}
           <div className="hstack" style={{ justifyContent: 'space-between', marginTop: 4, fontSize: 12, color: 'var(--text-3)' }}>
             <span>Effective</span><span className="mono">{fmtMoneyCents(task.effectiveRateCents)}/h</span>
           </div>

@@ -16,9 +16,10 @@ export function ManualEntryScreen({ entryId, taskId, onBack }: { entryId?: strin
   const [mode, setMode] = useState<Mode>('duration');
   const [start, setStart] = useState(toLocalInput(new Date()));
   const [end, setEnd] = useState(toLocalInput(new Date()));
-  // Duration-mode inputs:
-  const [hours, setHours] = useState('0');
-  const [minutes, setMinutes] = useState('30');
+  // Duration-mode inputs — start empty so the user types straight in without
+  // having to clear the field first. Placeholders show "0" / "30" as hints.
+  const [hours, setHours] = useState('');
+  const [minutes, setMinutes] = useState('');
   const [note, setNote] = useState('');
   const [taskRef, setTaskRef] = useState<string | undefined>(taskId);
   const [editing, setEditing] = useState<TimeEntry | null>(null);
@@ -116,8 +117,8 @@ export function ManualEntryScreen({ entryId, taskId, onBack }: { entryId?: strin
             {mode === 'duration' && !editing ? (
               <>
                 <div className="hstack" style={{ gap: 10, alignItems: 'flex-end' }}>
-                  <NumberField label="Hours" value={hours} onChange={setHours} min={0} max={24} />
-                  <NumberField label="Minutes" value={minutes} onChange={setMinutes} min={0} max={59} />
+                  <NumberField label="Hours" value={hours} placeholder="0" onChange={setHours} min={0} max={24} />
+                  <NumberField label="Minutes" value={minutes} placeholder="30" onChange={setMinutes} min={0} max={59} />
                 </div>
                 <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 12 }}>
                   Will log <span className="mono" style={{ color: 'var(--text-2)' }}>{fmtHMS(durationSecs)}</span> ending now ({new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}).
@@ -167,7 +168,7 @@ export function ManualEntryScreen({ entryId, taskId, onBack }: { entryId?: strin
   );
 }
 
-function NumberField({ label, value, onChange, min, max }: { label: string; value: string; onChange: (v: string) => void; min: number; max: number }) {
+function NumberField({ label, value, placeholder, onChange, min, max }: { label: string; value: string; placeholder?: string; onChange: (v: string) => void; min: number; max: number }) {
   return (
     <div style={{ flex: 1 }}>
       <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)', marginBottom: 6 }}>{label}</div>
@@ -177,6 +178,7 @@ function NumberField({ label, value, onChange, min, max }: { label: string; valu
         min={min}
         max={max}
         value={value}
+        placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         className="mono"
         style={{

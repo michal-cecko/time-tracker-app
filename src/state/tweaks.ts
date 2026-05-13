@@ -1,14 +1,10 @@
 import { create } from 'zustand';
 
-export type Theme = 'dark' | 'bright';
-export type Density = 'compact' | 'regular' | 'comfy';
+export type Theme = 'dark' | 'bright' | 'system';
 
 export interface Tweaks {
   theme: Theme;
   accentHex: string;
-  density: Density;
-  fontScale: number;
-  showOffline: boolean;
 }
 
 interface TweaksStore extends Tweaks {
@@ -22,13 +18,21 @@ function loadInitial(): Tweaks {
   if (typeof localStorage === 'undefined') return defaults();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...defaults(), ...JSON.parse(raw) };
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<Tweaks>;
+      // Tolerate old shapes (with density/fontScale/showOffline) — just pick
+      // the two fields we still use.
+      return {
+        theme: (parsed.theme as Theme) ?? defaults().theme,
+        accentHex: parsed.accentHex ?? defaults().accentHex,
+      };
+    }
   } catch {}
   return defaults();
 }
 
 function defaults(): Tweaks {
-  return { theme: 'dark', accentHex: '#FF7A45', density: 'regular', fontScale: 1.0, showOffline: false };
+  return { theme: 'system', accentHex: '#FF7A45' };
 }
 
 function persist(t: Tweaks) {

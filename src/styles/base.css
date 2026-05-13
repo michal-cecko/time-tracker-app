@@ -7,6 +7,13 @@ body {
   overscroll-behavior: none;
 }
 
+/* Kill the default mobile tap-highlight overlay (iOS/Android Chrome) — the
+   bluish flash you saw on tap. We also remove the system focus outline on
+   touch input while preserving keyboard focus visibility via :focus-visible. */
+* { -webkit-tap-highlight-color: transparent; }
+button:focus:not(:focus-visible),
+[role="button"]:focus:not(:focus-visible) { outline: none; }
+
 /* iPhone preview frame for the web target. On Capacitor / Tauri builds,
    `.is-native` is set and the frame is bypassed. */
 .preview-root {

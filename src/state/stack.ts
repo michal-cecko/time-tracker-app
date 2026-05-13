@@ -9,7 +9,6 @@ export type StackEntry =
   | { kind: 'settings' }
   | { kind: 'search' }
   | { kind: 'quickAdd' }
-  | { kind: 'tweaks' }
   | { kind: 'syncSheet' };
 
 interface Nav {

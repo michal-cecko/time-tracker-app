@@ -77,8 +77,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           hydrateTweaks({
             theme: me.settings.theme,
             accentHex: me.settings.accentHex,
-            density: me.settings.density,
-            fontScale: me.settings.fontScale,
           });
         }
         connectRealtime();
@@ -126,8 +124,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           hydrateTweaks({
             theme: me.settings.theme,
             accentHex: me.settings.accentHex,
-            density: me.settings.density,
-            fontScale: me.settings.fontScale,
           });
         }
       } catch {}

@@ -13,6 +13,7 @@ import { DesktopReports } from './DesktopReports';
 import { DesktopHistory } from './DesktopHistory';
 import { Inspector } from './Inspector';
 import { CommandPalette } from './CommandPalette';
+import { LogoMark } from '@/components/brand/Logo';
 
 export type DesktopView =
   | { kind: 'today' }
@@ -111,7 +112,10 @@ export function DesktopShell() {
           <span className="dt-light min" />
           <span className="dt-light max" />
         </div>
-        <span className="dt-title">Lapse</span>
+        <span className="dt-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <LogoMark size={14} />
+          Lapse
+        </span>
         <div className="dt-titlebar-right">
           <button className={`dt-timer-pill ${running ? 'running' : 'idle'}`} onClick={() => running && setSelectedTaskId(running.taskId)}>
             {running ? (

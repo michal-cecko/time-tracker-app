@@ -23,7 +23,7 @@ export interface User {
 
 export interface Settings {
   userId: string;
-  theme: 'dark' | 'bright';
+  theme: 'dark' | 'bright' | 'system';
   accentHex: string;
   density: 'compact' | 'regular' | 'comfy';
   fontScale: number;
@@ -48,6 +48,12 @@ export interface Project {
   updatedAt: string;
   trackedSeconds: number;
   openTaskCount: number;
+  // Rolled-up billing across every task in the project (incl. subtasks).
+  // Null when no task in the project has a billing mode set.
+  earnedCents: number | null;
+  earnedLast30dCents: number | null;
+  projectedCents: number | null;
+  effectiveRateCents: number | null;
 }
 
 export interface Task {

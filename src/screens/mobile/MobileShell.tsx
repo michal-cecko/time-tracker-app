@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { TabBar, type Tab } from '@/components/ui/TabBar';
 import { MiniTimerBar } from '@/components/ui/MiniTimerBar';
 import { useNav } from '@/state/stack';
@@ -13,24 +13,44 @@ import { SearchScreen } from './Search';
 import { QuickAddSheet } from './QuickAdd';
 import { ManualEntryScreen } from './ManualEntry';
 import { SettingsScreen } from './Settings';
-import { TweaksPanel } from './TweaksPanel';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import { useRunning } from '@/state/running';
-import type { Task, TimeEntry } from '@/api/types';
+import { initNotifications, setNotificationHandlers, showTrackingNotification, cancelTrackingNotification, scheduleIdleReminder } from '@/native/notifications';
+import type { Settings, Task, TimeEntry } from '@/api/types';
+import { isNative } from '@/utils/platform';
 
 export function MobileShell() {
   const { tab, setTab, stack, push, back } = useNav();
   const setRunning = useRunning((s) => s.setRunning);
+  const running = useRunning((s) => s.running);
+  const idleMinRef = useRef(60); // sane default until /me/settings loads
 
-  // Hydrate the running timer state and keep it in sync with the server
-  // via the realtime WS so any device's start/stop ripples to all clients.
+  // Boot the notification plugin once and wire its action buttons to app handlers.
+  useEffect(() => {
+    initNotifications();
+    setNotificationHandlers({
+      onPause: async () => {
+        try { await api('/time-entries/stop', { method: 'POST' }); } catch {}
+        setRunning(null);
+      },
+      onOpenTask: (taskId: string) => push({ kind: 'task', id: taskId }),
+    });
+    // Read the user's preferred reminder interval so the next start uses it.
+    (async () => {
+      try {
+        const me = await api<{ settings: Settings }>('/me');
+        if (me.settings?.idleDetectionMin) idleMinRef.current = me.settings.idleDetectionMin;
+      } catch {}
+    })();
+  }, [push, setRunning]);
+
+  // Hydrate the running-timer state on boot + keep it live via WS.
   useEffect(() => {
     const hydrate = async () => {
       try {
         const r = await api<TimeEntry | null>('/time-entries/running');
         if (r?.id) {
-          // Best-effort task title lookup so the mini-bar reads nicely.
           let title: string | undefined;
           try {
             const t = await api<Task>(`/tasks/${r.taskId}`);
@@ -49,6 +69,22 @@ export function MobileShell() {
     ];
     return () => offs.forEach((o) => o());
   }, [setRunning]);
+
+  // Drive the OS notification: present whenever there's a running timer,
+  // cancel when there isn't. Also (re)schedule a "still tracking?" reminder.
+  useEffect(() => {
+    if (running) {
+      const title = running.taskTitle ?? 'Task';
+      showTrackingNotification({
+        taskTitle: title,
+        taskId: running.taskId,
+        startedAt: running.startedAt,
+      });
+      scheduleIdleReminder({ taskTitle: title, taskId: running.taskId, minutes: idleMinRef.current });
+    } else {
+      cancelTrackingNotification();
+    }
+  }, [running?.entryId, running?.taskId, running?.taskTitle]);
 
   const top = stack[stack.length - 1];
 
@@ -75,14 +111,13 @@ export function MobileShell() {
     }
   };
 
-  const modal = stack.find((e) => e.kind === 'tweaks' || e.kind === 'quickAdd' || e.kind === 'syncSheet');
+  const modal = stack.find((e) => e.kind === 'quickAdd' || e.kind === 'syncSheet');
 
   return (
     <>
       {renderTop()}
       <MiniTimerBar onOpen={(id) => push({ kind: 'task', id })} />
       <TabBar tab={tab} onChange={setTab} onTimer={() => push({ kind: 'quickAdd' })} />
-      {modal?.kind === 'tweaks'   && <TweaksPanel onClose={back} />}
       {modal?.kind === 'quickAdd' && <QuickAddSheet onClose={back} />}
     </>
   );
