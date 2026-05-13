@@ -12,6 +12,7 @@ import { DesktopProjectDetail } from './DesktopProjectDetail';
 import { DesktopCalendar } from './DesktopCalendar';
 import { DesktopReports } from './DesktopReports';
 import { DesktopHistory } from './DesktopHistory';
+import { SettingsScreen } from '@/screens/mobile/Settings';
 import { Inspector } from './Inspector';
 import { CommandPalette } from './CommandPalette';
 import { TimerPanel } from './TimerPanel';
@@ -23,7 +24,8 @@ export type DesktopView =
   | { kind: 'project'; id: string }
   | { kind: 'calendar' }
   | { kind: 'reports' }
-  | { kind: 'history' };
+  | { kind: 'history' }
+  | { kind: 'settings' };
 
 export function DesktopShell() {
   const isTauri = platform() === 'macos';
@@ -34,7 +36,7 @@ export function DesktopShell() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [timerPanelOpen, setTimerPanelOpen] = useState(false);
   const { running, elapsed, tick, setRunning } = useRunning();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   const load = async () => setProjects(await api<Project[]>('/projects?archived=all'));
 
@@ -106,22 +108,20 @@ export function DesktopShell() {
       case 'calendar': return <DesktopCalendar />;
       case 'reports':  return <DesktopReports />;
       case 'history':  return <DesktopHistory onSelectTask={setSelectedTaskId} />;
+      case 'settings': return (
+        <div className="dt-settings-wrap">
+          <SettingsScreen onBack={() => setView({ kind: 'today' })} />
+        </div>
+      );
     }
   };
 
   return (
     <div className={`dt-shell app ${isTauri ? 'tauri' : ''}`}>
       <div className="dt-titlebar" data-tauri-drag-region>
-        {!isTauri && (
-          <div className="dt-lights">
-            <span className="dt-light close" />
-            <span className="dt-light min" />
-            <span className="dt-light max" />
-          </div>
-        )}
-        <span className="dt-title" data-tauri-drag-region style={{ display: 'inline-flex', alignItems: 'center', gap: 6, pointerEvents: 'none' }}>
-          <LogoMark size={14} />
-          Lapse
+        <span className="dt-brand" data-tauri-drag-region>
+          <LogoMark size={18} />
+          <span className="dt-brand-name">Lapse</span>
         </span>
         <div className="dt-titlebar-right" data-tauri-drag-region="false">
           <span className="tp-anchor">
@@ -159,7 +159,12 @@ export function DesktopShell() {
           <button className="dt-cmd-btn" onClick={() => setPaletteOpen(true)}>
             <Icon.Search size={12} /><span>Jump to…</span><kbd>⌘K</kbd>
           </button>
-          <button className="dt-avatar" onClick={logout} title="Sign out">{initials}</button>
+          <button
+            className="dt-avatar"
+            onClick={() => setView({ kind: 'settings' })}
+            title="Settings"
+            aria-label="Settings"
+          >{initials}</button>
         </div>
       </div>
 

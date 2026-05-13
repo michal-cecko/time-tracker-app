@@ -3,7 +3,6 @@ import { EditorContent, useEditor, type JSONContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
-import { Icon } from './Icon';
 
 export type RichDoc = JSONContent;
 
@@ -84,16 +83,9 @@ function RichToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
   return (
     <div className="rt-toolbar">
       {btn(editor.isActive('bold'), () => editor.chain().focus().toggleBold().run(), 'Bold', <strong>B</strong>)}
-      {btn(editor.isActive('italic'), () => editor.chain().focus().toggleItalic().run(), 'Italic', <em>I</em>)}
-      {btn(editor.isActive('strike'), () => editor.chain().focus().toggleStrike().run(), 'Strikethrough', <s>S</s>)}
-      <span className="rt-sep" />
-      {btn(editor.isActive('heading', { level: 1 }), () => editor.chain().focus().toggleHeading({ level: 1 }).run(), 'Heading 1', 'H1')}
-      {btn(editor.isActive('heading', { level: 2 }), () => editor.chain().focus().toggleHeading({ level: 2 }).run(), 'Heading 2', 'H2')}
-      {btn(editor.isActive('heading', { level: 3 }), () => editor.chain().focus().toggleHeading({ level: 3 }).run(), 'Heading 3', 'H3')}
       <span className="rt-sep" />
       {btn(editor.isActive('bulletList'), () => editor.chain().focus().toggleBulletList().run(), 'Bullet list', '•')}
       {btn(editor.isActive('orderedList'), () => editor.chain().focus().toggleOrderedList().run(), 'Ordered list', '1.')}
-      {btn(editor.isActive('blockquote'), () => editor.chain().focus().toggleBlockquote().run(), 'Quote', '"')}
       {btn(editor.isActive('codeBlock'), () => editor.chain().focus().toggleCodeBlock().run(), 'Code block', <code>{`</>`}</code>)}
       <span className="rt-sep" />
       {btn(editor.isActive('link'), () => {
@@ -102,7 +94,7 @@ function RichToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
         if (url === null) return;
         if (url === '') { editor.chain().focus().extendMarkRange('link').unsetLink().run(); return; }
         editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
-      }, 'Link', <Icon.More size={12} />)}
+      }, 'Link', 'a')}
     </div>
   );
 }
