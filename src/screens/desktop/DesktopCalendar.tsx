@@ -30,9 +30,9 @@ export function DesktopCalendar() {
   return (
     <>
       <div className="hstack" style={{ marginBottom: 16 }}>
-        <button className="icon-btn" onClick={() => { const d = new Date(anchor); d.setDate(d.getDate() - 7); setAnchor(d); }}><Icon.ChevronLeft /></button>
+        <button className="icon-btn" onClick={() => setAnchor((prev) => { const d = new Date(prev); d.setDate(d.getDate() - 7); return d; })}><Icon.ChevronLeft /></button>
         <button className="btn" onClick={() => setAnchor(new Date())}>Today</button>
-        <button className="icon-btn" onClick={() => { const d = new Date(anchor); d.setDate(d.getDate() + 7); setAnchor(d); }}><Icon.ChevronRight /></button>
+        <button className="icon-btn" onClick={() => setAnchor((prev) => { const d = new Date(prev); d.setDate(d.getDate() + 7); return d; })}><Icon.ChevronRight /></button>
         <span className="spacer" />
         <div style={{ fontSize: 14, fontWeight: 600 }}>{range.from.toLocaleDateString([], { month: 'long', year: 'numeric' })}</div>
       </div>

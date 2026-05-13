@@ -52,7 +52,7 @@ export function pctOf(num: number, denom: number): number {
 
 export function fmtMoneyCents(cents: number | null | undefined): string {
   if (cents == null) return '—';
-  return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
+  return `€${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
 }
 
 export function fmtClock(d: Date): string {

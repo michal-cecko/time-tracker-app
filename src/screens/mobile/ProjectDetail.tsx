@@ -2,9 +2,13 @@ import { useEffect, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { NestedTaskRow } from '@/components/ui/TaskRow';
 import { StatusPicker } from '@/components/ui/Status';
+import { ActionSheet } from '@/components/ui/sheets/ActionSheet';
+import { EditProjectSheet } from '@/components/ui/sheets/EditProjectSheet';
 import { DeleteProjectModal } from '@/components/ui/DeleteProjectModal';
+import { QuickAddSheet } from './QuickAdd';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
+import { projects as projectsApi } from '@/api/mutations';
 import type { Project, Task, Status } from '@/api/types';
 import { fmtHM } from '@/utils/format';
 import { useNav } from '@/state/stack';
@@ -14,6 +18,9 @@ export function ProjectDetailScreen({ id, onBack }: { id: string; onBack: () => 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [picker, setPicker] = useState<{ taskId: string; status: Status } | null>(null);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { push } = useNav();
 
@@ -38,11 +45,6 @@ export function ProjectDetailScreen({ id, onBack }: { id: string; onBack: () => 
 
   const toggle = (tid: string) => setExpanded((s) => { const n = new Set(s); n.has(tid) ? n.delete(tid) : n.add(tid); return n; });
 
-  const archive = async () => {
-    if (!project) return;
-    await api(`/projects/${project.id}/${project.archived ? 'unarchive' : 'archive'}`, { method: 'POST' });
-  };
-
   if (!project) return <div className="scroll" style={{ padding: 60 }}>Loading…</div>;
 
   return (
@@ -61,13 +63,16 @@ export function ProjectDetailScreen({ id, onBack }: { id: string; onBack: () => 
           </div>
         </span>
         <span className="spacer" />
-        <button className="icon-btn" onClick={archive} aria-label={project.archived ? 'Unarchive' : 'Archive'}><Icon.Archive /></button>
         <button
           className="icon-btn"
-          onClick={() => setConfirmDelete(true)}
-          aria-label="Delete project"
-          style={{ color: 'var(--pri-urgent)' }}
-        ><Icon.Trash /></button>
+          onClick={() => setNewTaskOpen(true)}
+          aria-label="New task"
+        ><Icon.Plus /></button>
+        <button
+          className="icon-btn"
+          onClick={() => setActionsOpen(true)}
+          aria-label="Project actions"
+        ><Icon.More /></button>
       </div>
       <div className="scroll">
         <div className="section">
@@ -84,7 +89,17 @@ export function ProjectDetailScreen({ id, onBack }: { id: string; onBack: () => 
         </div>
 
         <div className="section">
-          <div className="section-head"><span>Tasks</span><span className="count">{tasks.length}</span></div>
+          <div className="section-head">
+            <span>Tasks</span>
+            <span className="hstack" style={{ gap: 8 }}>
+              <span className="count">{tasks.length}</span>
+              <button
+                className="seg-btn"
+                onClick={() => setNewTaskOpen(true)}
+                style={{ background: 'var(--bg-elev-2)', color: 'var(--text)' }}
+              ><Icon.Plus size={11} />Add</button>
+            </span>
+          </div>
           <div className="card">
             {tasks.map((t) => (
               <NestedTaskRow
@@ -102,6 +117,20 @@ export function ProjectDetailScreen({ id, onBack }: { id: string; onBack: () => 
                 }}
               />
             ))}
+            {tasks.length === 0 && (
+              <div style={{ padding: '28px 16px', textAlign: 'center' }}>
+                <div style={{ fontSize: 13, color: 'var(--text-3)', marginBottom: 12 }}>
+                  No tasks in this project yet.
+                </div>
+                <button
+                  className="btn primary"
+                  onClick={() => setNewTaskOpen(true)}
+                  style={{ display: 'inline-flex' }}
+                >
+                  <Icon.Plus size={14} /> Create the first task
+                </button>
+              </div>
+            )}
           </div>
         </div>
         <div style={{ height: 120 }} />
@@ -114,6 +143,38 @@ export function ProjectDetailScreen({ id, onBack }: { id: string; onBack: () => 
             await api(`/tasks/${picker.taskId}/status`, { method: 'POST', body: { status: s } });
           }}
           onClose={() => setPicker(null)}
+        />
+      )}
+
+      {actionsOpen && (
+        <ActionSheet
+          title={project.name}
+          subtitle="Project actions"
+          actions={[
+            { label: 'Edit', icon: <Icon.Edit size={14} />, onClick: () => setEditOpen(true) },
+            {
+              label: project.archived ? 'Unarchive' : 'Archive',
+              icon: <Icon.Archive size={14} />,
+              onClick: async () => { try { project.archived ? await projectsApi.unarchive(project.id) : await projectsApi.archive(project.id); load(); } catch {} },
+            },
+            { label: 'Delete', danger: true, icon: <Icon.Trash size={14} />, onClick: () => setConfirmDelete(true) },
+          ]}
+          onClose={() => setActionsOpen(false)}
+        />
+      )}
+
+      {editOpen && (
+        <EditProjectSheet
+          project={project}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => load()}
+        />
+      )}
+
+      {newTaskOpen && (
+        <QuickAddSheet
+          defaultProjectId={project.id}
+          onClose={() => { setNewTaskOpen(false); load(); }}
         />
       )}
 

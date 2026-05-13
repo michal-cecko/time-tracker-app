@@ -9,6 +9,7 @@ import { ConfirmSheet } from '@/components/ui/sheets/ConfirmSheet';
 import { EditTaskSheet } from '@/components/ui/sheets/EditTaskSheet';
 import { MoveTaskSheet } from '@/components/ui/sheets/MoveTaskSheet';
 import { EditEntrySheet } from '@/components/ui/sheets/EditEntrySheet';
+import { QuickAddSheet } from './QuickAdd';
 import { tasks as tasksApi, entries as entriesApi } from '@/api/mutations';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
@@ -30,6 +31,7 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [entryEdit, setEntryEdit] = useState<TimeEntry | null>(null);
   const [entryDelete, setEntryDelete] = useState<TimeEntry | null>(null);
+  const [newSubtaskOpen, setNewSubtaskOpen] = useState(false);
   const { push } = useNav();
   const { elapsed, running, tick, setRunning } = useRunning();
 
@@ -182,7 +184,7 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
             </div>
             {billingDraft.mode === 'HOURLY_RATE' && (
               <div className="field" style={{ marginBottom: 8 }}>
-                <label>Rate ($/hour)</label>
+                <label>Rate (€/hour)</label>
                 <input
                   type="number" min={0} step={1}
                   value={billingDraft.rate}
@@ -193,7 +195,7 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
             )}
             {billingDraft.mode === 'TASK_PRICE' && (
               <div className="field" style={{ marginBottom: 8 }}>
-                <label>Fixed price ($)</label>
+                <label>Fixed price (€)</label>
                 <input
                   type="number" min={0} step={1}
                   value={billingDraft.price}
@@ -221,22 +223,35 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
           </div>
         </div>
 
-        {task.children.length > 0 && (
-          <div className="section">
-            <div className="section-head"><span>Subtasks</span><span className="count">{task.children.length}</span></div>
-            <div className="card">
-              {task.children.map((c) => (
-                <NestedTaskRow
-                  key={c.id}
-                  task={c}
-                  expanded={expanded}
-                  onToggle={(tid) => setExpanded((s) => { const n = new Set(s); n.has(tid) ? n.delete(tid) : n.add(tid); return n; })}
-                  onOpen={(tid) => push({ kind: 'task', id: tid })}
-                />
-              ))}
-            </div>
+        <div className="section">
+          <div className="section-head">
+            <span>Subtasks</span>
+            <span className="hstack" style={{ gap: 8 }}>
+              <span className="count">{task.children.length}</span>
+              <button
+                className="seg-btn"
+                onClick={() => setNewSubtaskOpen(true)}
+                style={{ background: 'var(--bg-elev-2)', color: 'var(--text)' }}
+              ><Icon.Plus size={11} />Add</button>
+            </span>
           </div>
-        )}
+          <div className="card">
+            {task.children.map((c) => (
+              <NestedTaskRow
+                key={c.id}
+                task={c}
+                expanded={expanded}
+                onToggle={(tid) => setExpanded((s) => { const n = new Set(s); n.has(tid) ? n.delete(tid) : n.add(tid); return n; })}
+                onOpen={(tid) => push({ kind: 'task', id: tid })}
+              />
+            ))}
+            {task.children.length === 0 && (
+              <div style={{ padding: '20px 16px', textAlign: 'center', fontSize: 13, color: 'var(--text-3)' }}>
+                No subtasks yet. <button className="auth-link" onClick={() => setNewSubtaskOpen(true)}>Add one</button>.
+              </div>
+            )}
+          </div>
+        </div>
 
         {task.description != null && (
           <div className="section">
@@ -374,6 +389,15 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
             try { await entriesApi.remove(entryDelete.id); load(); } catch {}
           }}
           onClose={() => setEntryDelete(null)}
+        />
+      )}
+
+      {newSubtaskOpen && (
+        <QuickAddSheet
+          parentTaskId={task.id}
+          parentTaskTitle={task.title}
+          defaultProjectId={task.projectId}
+          onClose={() => { setNewSubtaskOpen(false); load(); }}
         />
       )}
     </>

@@ -51,11 +51,11 @@ export function CalendarScreen() {
         <div className="section">
           <div className="card" style={{ padding: 12 }}>
             <div className="hstack" style={{ justifyContent: 'space-between', marginBottom: 10 }}>
-              <button className="icon-btn" onClick={() => { const d = new Date(anchor); d.setDate(d.getDate() - 7); setAnchor(d); }} aria-label="Prev"><Icon.ChevronLeft /></button>
+              <button className="icon-btn" onClick={() => setAnchor((prev) => { const d = new Date(prev); d.setDate(d.getDate() - 7); return d; })} aria-label="Prev"><Icon.ChevronLeft /></button>
               <div className="mono" style={{ fontSize: 14, fontWeight: 600 }}>
                 {anchor.toLocaleDateString([], { month: 'long', year: 'numeric' })}
               </div>
-              <button className="icon-btn" onClick={() => { const d = new Date(anchor); d.setDate(d.getDate() + 7); setAnchor(d); }} aria-label="Next"><Icon.ChevronRight /></button>
+              <button className="icon-btn" onClick={() => setAnchor((prev) => { const d = new Date(prev); d.setDate(d.getDate() + 7); return d; })} aria-label="Next"><Icon.ChevronRight /></button>
             </div>
             <div className="hstack" style={{ gap: 6 }}>
               {(['week', 'month'] as const).map((v) => (
