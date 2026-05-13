@@ -120,8 +120,8 @@ export function DesktopShell() {
     <div className={`dt-shell app ${isTauri ? 'tauri' : ''}`}>
       <div className="dt-titlebar" data-tauri-drag-region>
         <span className="dt-brand" data-tauri-drag-region>
-          <LogoMark size={18} />
-          <span className="dt-brand-name">Lapse</span>
+          <LogoMark size={14} />
+          <span>Lapse</span>
         </span>
         <div className="dt-titlebar-right" data-tauri-drag-region="false">
           <span className="tp-anchor">

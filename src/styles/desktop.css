@@ -18,8 +18,8 @@ body {
 
 /* ── TITLEBAR ───────────────────────────────────────── */
 .dt-titlebar {
-  display: flex; align-items: center; gap: 18px;
-  padding: 8px 20px;
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 14px;
   background: linear-gradient(180deg, color-mix(in oklab, var(--bg-elev) 80%, var(--bg)) 0%, var(--bg) 100%);
   border-bottom: 1px solid var(--border);
   -webkit-app-region: drag;
@@ -27,52 +27,51 @@ body {
 }
 /* Tauri/macOS: leave room for the native traffic lights at top-left. */
 .dt-shell.tauri .dt-titlebar { padding-left: 82px; }
+/* Brand cluster — replaces the design's centered text-only title with a
+   left-anchored logo + wordmark. Sized to match the 38px titlebar. */
 .dt-brand {
-  display: inline-flex; align-items: center; gap: 10px;
-  font-size: 13px; font-weight: 600;
-  color: var(--text);
-  letter-spacing: -0.005em;
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 600;
+  color: var(--text-2);
+  letter-spacing: 0.02em;
   pointer-events: none;
 }
-.dt-brand-name { line-height: 1; }
 .dt-titlebar-right {
-  margin-left: auto; display: flex; align-items: center; gap: 12px;
+  margin-left: auto; display: flex; align-items: center; gap: 10px;
   -webkit-app-region: no-drag;
 }
 .dt-cmd-btn {
-  display: flex; align-items: center; gap: 10px;
-  height: 32px; padding: 0 14px;
+  display: flex; align-items: center; gap: 8px;
+  height: 24px; padding: 0 10px;
   background: var(--bg-elev); border: 1px solid var(--border);
-  border-radius: 8px; color: var(--text-3);
-  font-size: 12.5px; cursor: pointer;
+  border-radius: 7px; color: var(--text-3);
+  font-size: 12px; cursor: pointer;
   font-family: inherit;
 }
-.dt-cmd-btn:hover { background: var(--bg-elev-2); color: var(--text-2); }
-.dt-cmd-btn span { padding-right: 20px; }
+.dt-cmd-btn span { padding-right: 16px; }
 .dt-cmd-btn kbd {
-  font-family: var(--font-mono); font-size: 10.5px;
+  font-family: var(--font-mono); font-size: 10px;
   background: var(--bg); border: 1px solid var(--border);
-  padding: 2px 6px; border-radius: 4px; color: var(--text-3);
+  padding: 1px 5px; border-radius: 3px; color: var(--text-3);
 }
 .dt-avatar {
-  width: 32px; height: 32px; border-radius: 50%;
+  width: 24px; height: 24px; border-radius: 50%;
   background: var(--accent); color: var(--bg);
-  font-size: 12px; font-weight: 700;
+  font-size: 10px; font-weight: 700;
   border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
 }
 
 /* ── TIMER PILL ─────────────────────────────────────── */
 .dt-timer-pill {
-  display: flex; align-items: center; gap: 10px;
-  height: 32px; padding: 0 6px 0 14px;
+  display: flex; align-items: center; gap: 8px;
+  height: 24px; padding: 0 4px 0 10px;
   background: var(--bg-elev); border: 1px solid var(--border);
-  border-radius: 8px; color: var(--text);
-  font-size: 12.5px; cursor: pointer;
+  border-radius: 7px; color: var(--text);
+  font-size: 11px; cursor: pointer;
   font-family: inherit;
-  max-width: 380px;
+  max-width: 360px;
 }
-.dt-timer-pill:hover { background: var(--bg-elev-2); }
 .dt-timer-pill.idle { color: var(--text-3); }
 .dt-timer-pill.running {
   border-color: color-mix(in oklab, var(--accent) 50%, var(--border));
@@ -88,10 +87,10 @@ body {
   100% { box-shadow: 0 0 0 6px color-mix(in oklab, var(--accent) 0%, transparent); }
 }
 .dt-tp-proj { width: 6px; height: 6px; border-radius: 2px; }
-.dt-tp-time { font-size: 12px; font-weight: 500; color: var(--accent); }
+.dt-tp-time { font-size: 11px; font-weight: 500; color: var(--accent); }
 .dt-tp-stop {
   display: flex; align-items: center; justify-content: center;
-  width: 22px; height: 22px; border-radius: 5px;
+  width: 18px; height: 18px; border-radius: 4px;
   background: color-mix(in oklab, var(--accent) 14%, transparent);
   color: var(--accent);
 }
@@ -306,22 +305,22 @@ body {
 .dt-rail {
   background: var(--bg);
   border-right: 1px solid var(--border);
-  padding: 16px 12px;
+  padding: 12px 8px;
   display: flex; flex-direction: column;
   overflow-y: auto;
 }
 .dt-rail-head {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 20px 12px 10px;
-  font-size: 10.5px; font-weight: 600; color: var(--text-4);
+  padding: 16px 10px 6px;
+  font-size: 10px; font-weight: 600; color: var(--text-4);
   text-transform: uppercase; letter-spacing: 0.1em;
 }
-.dt-rail-section { display: flex; flex-direction: column; gap: 3px; }
+.dt-rail-section { display: flex; flex-direction: column; gap: 1px; }
 .dt-rail-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 12px; border-radius: 8px;
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px 10px; border-radius: 6px;
   background: none; border: none;
-  color: var(--text-2); font-size: 13px;
+  color: var(--text-2); font-size: 12.5px;
   cursor: pointer; text-align: left;
   font-family: inherit;
 }
@@ -331,7 +330,7 @@ body {
   color: var(--text);
 }
 .dt-rail-meta {
-  margin-left: auto; font-size: 10.5px; color: var(--text-4);
+  margin-left: auto; font-size: 10px; color: var(--text-4);
 }
 .dt-rail-item.archived { color: var(--text-3); }
 .dt-rail-item.archived .dt-truncate { font-style: italic; }
@@ -398,13 +397,13 @@ body {
 .dt-page-sub {
   font-size: 12px; color: var(--text-3); margin-top: 4px;
 }
-.dt-page-actions { display: flex; gap: 10px; }
+.dt-page-actions { display: flex; gap: 8px; }
 .dt-btn {
-  display: inline-flex; align-items: center; gap: 8px;
-  height: 34px; padding: 0 14px;
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 28px; padding: 0 11px;
   background: var(--bg-elev); border: 1px solid var(--border);
-  border-radius: 8px; color: var(--text-2);
-  font-size: 12.5px; cursor: pointer;
+  border-radius: 6px; color: var(--text-2);
+  font-size: 12px; cursor: pointer;
   font-family: inherit;
 }
 .dt-btn:hover { background: color-mix(in oklab, var(--bg-elev) 80%, var(--text-4)); color: var(--text); }
