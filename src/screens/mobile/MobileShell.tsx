@@ -85,11 +85,13 @@ export function MobileShell() {
         const r = await api<TimeEntry | null>('/time-entries/running');
         if (r?.id) {
           let title: string | undefined;
-          try {
-            const t = await api<Task>(`/tasks/${r.taskId}`);
-            title = t.title;
-          } catch {}
-          setRunning({ entryId: r.id, taskId: r.taskId, taskTitle: title, startedAt: r.startedAt });
+          if (r.taskId) {
+            try {
+              const t = await api<Task>(`/tasks/${r.taskId}`);
+              title = t.title;
+            } catch {}
+          }
+          setRunning({ entryId: r.id, taskId: r.taskId ?? null, taskTitle: title ?? null, startedAt: r.startedAt });
         } else {
           setRunning(null);
         }
@@ -118,10 +120,10 @@ export function MobileShell() {
       const title = running.taskTitle ?? 'Task';
       showTrackingNotification({
         taskTitle: title,
-        taskId: running.taskId,
+        taskId: running.taskId ?? '',
         startedAt: running.startedAt,
       });
-      scheduleIdleReminder({ taskTitle: title, taskId: running.taskId, minutes: idleMinRef.current });
+      scheduleIdleReminder({ taskTitle: title, taskId: running.taskId ?? '', minutes: idleMinRef.current });
     } else {
       cancelTrackingNotification();
     }

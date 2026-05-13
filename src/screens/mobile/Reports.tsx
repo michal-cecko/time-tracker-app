@@ -98,7 +98,7 @@ export function ReportsScreen() {
           <div className="card">
             {recent.map((e) => {
               return (
-                <div key={e.id} className="task" style={{ minHeight: 48 }} onClick={() => push({ kind: 'task', id: e.taskId })}>
+                <div key={e.id} className="task" style={{ minHeight: 48 }} onClick={() => e.taskId && push({ kind: 'task', id: e.taskId })}>
                   {!e.endedAt && <span className="pulse" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />}
                   <div className="grow" style={{ minWidth: 0 }}>
                     {e.task?.project ? (

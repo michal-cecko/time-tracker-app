@@ -14,6 +14,7 @@ import { DesktopReports } from './DesktopReports';
 import { DesktopHistory } from './DesktopHistory';
 import { Inspector } from './Inspector';
 import { CommandPalette } from './CommandPalette';
+import { TimerPanel } from './TimerPanel';
 import { LogoMark } from '@/components/brand/Logo';
 import { platform } from '@/utils/platform';
 
@@ -31,6 +32,7 @@ export function DesktopShell() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [timerPanelOpen, setTimerPanelOpen] = useState(false);
   const { running, elapsed, tick, setRunning } = useRunning();
   const { user, logout } = useAuth();
 
@@ -122,25 +124,38 @@ export function DesktopShell() {
           Lapse
         </span>
         <div className="dt-titlebar-right" data-tauri-drag-region="false">
-          <button className={`dt-timer-pill ${running ? 'running' : 'idle'}`} onClick={() => running && setSelectedTaskId(running.taskId)}>
-            {running ? (
-              <>
-                <span className="dt-tp-live" />
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
-                  {running.taskTitle ?? 'Tracking'}
-                </span>
-                <span className="dt-tp-time">{fmtHMS(elapsed)}</span>
-                <span
-                  className="dt-tp-stop"
-                  onClick={async (e) => { e.stopPropagation(); await entriesApi.stopTimer(); }}
-                  role="button"
-                  aria-label="Pause timer"
-                >
-                  <Icon.Pause size={11} />
-                </span>
-              </>
-            ) : <><Icon.Clock size={12} /> Idle</>}
-          </button>
+          <span className="tp-anchor">
+            <button
+              className={`dt-timer-pill ${running ? 'running' : 'idle'}`}
+              onClick={() => setTimerPanelOpen((v) => !v)}
+              aria-haspopup="dialog"
+              aria-expanded={timerPanelOpen}
+            >
+              {running ? (
+                <>
+                  <span className="dt-tp-live" />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
+                    {running.taskTitle ?? 'Tracking'}
+                  </span>
+                  <span className="dt-tp-time">{fmtHMS(elapsed)}</span>
+                  <span
+                    className="dt-tp-stop"
+                    onClick={async (e) => { e.stopPropagation(); await entriesApi.stopTimer(); }}
+                    role="button"
+                    aria-label="Pause timer"
+                  >
+                    <Icon.Pause size={11} />
+                  </span>
+                </>
+              ) : <><Icon.Clock size={12} /> Idle</>}
+            </button>
+            {timerPanelOpen && (
+              <TimerPanel
+                onClose={() => setTimerPanelOpen(false)}
+                onSelectTask={(id) => { setSelectedTaskId(id); setTimerPanelOpen(false); }}
+              />
+            )}
+          </span>
           <button className="dt-cmd-btn" onClick={() => setPaletteOpen(true)}>
             <Icon.Search size={12} /><span>Jump to…</span><kbd>⌘K</kbd>
           </button>

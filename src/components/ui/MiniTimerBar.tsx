@@ -26,7 +26,7 @@ export function MiniTimerBar({ onOpen }: { onOpen?: (taskId: string) => void }) 
   return (
     <div className="minibar">
       <span className="pulse" />
-      <div className="grow" onClick={() => running && onOpen?.(running.taskId)} style={{ cursor: 'pointer', minWidth: 0 }}>
+      <div className="grow" onClick={() => running?.taskId && onOpen?.(running.taskId)} style={{ cursor: 'pointer', minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {running.taskTitle ?? 'Running task'}
         </div>

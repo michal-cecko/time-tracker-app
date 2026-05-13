@@ -16,7 +16,7 @@ export function DesktopHistory({ onSelectTask }: { onSelectTask: (id: string) =>
           <span>When</span><span>Task</span><span>Project</span><span style={{ textAlign: 'right' }}>Duration</span>
         </div>
         {entries.map((e) => (
-          <div key={e.id} onClick={() => onSelectTask(e.taskId)} style={{ display: 'grid', gridTemplateColumns: '160px 1fr 180px 100px', padding: '10px 14px', borderBottom: '1px solid var(--line)', cursor: 'pointer', alignItems: 'center', fontSize: 13 }}>
+          <div key={e.id} onClick={() => e.taskId && onSelectTask(e.taskId)} style={{ display: 'grid', gridTemplateColumns: '160px 1fr 180px 100px', padding: '10px 14px', borderBottom: '1px solid var(--line)', cursor: 'pointer', alignItems: 'center', fontSize: 13 }}>
             <span className="mono" style={{ color: 'var(--text-2)' }}>{new Date(e.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
             <span>{e.task?.title}</span>
             <span style={{ color: 'var(--text-3)' }}>{e.task?.project?.name ?? ''}</span>

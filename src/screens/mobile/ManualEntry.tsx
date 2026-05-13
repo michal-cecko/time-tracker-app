@@ -34,7 +34,7 @@ export function ManualEntryScreen({ entryId, taskId, onBack }: { entryId?: strin
       setStart(toLocalInput(new Date(e.startedAt)));
       if (e.endedAt) setEnd(toLocalInput(new Date(e.endedAt)));
       setNote(e.note ?? '');
-      setTaskRef(e.taskId);
+      setTaskRef(e.taskId ?? undefined);
       // Editing existing entries always uses range mode because the start
       // and end were already chosen by the user / by the timer.
       setMode('range');

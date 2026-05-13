@@ -100,14 +100,16 @@ export const projects = {
 
 // ─── Time entries ───────────────────────────────────────────────────────
 export const entries = {
-  startTimer: async (taskId: string) => {
-    // Stamp the user-action time so a queued replay records the actual moment,
-    // not the moment we eventually drained the outbox.
+  // taskId is optional — pass null / empty string for an unassigned timer
+  // that the user will categorise later.
+  startTimer: async (taskId: string | null) => {
     const startedAt = new Date().toISOString();
+    const body: Record<string, unknown> = { startedAt };
+    if (taskId) body.taskId = taskId;
     const r = await mutate<TimeEntry>({
       method: 'POST',
       path: '/time-entries/start',
-      body: { taskId, startedAt },
+      body,
     });
     await clearCache('/time-entries');
     await clearCache('/tasks/');
@@ -126,11 +128,19 @@ export const entries = {
     return r.data;
   },
 
-  createManual: async (taskId: string, startedAt: string, endedAt: string | null, note?: string, durationSeconds?: number) => {
+  createManual: async (
+    taskId: string | null,
+    startedAt: string,
+    endedAt: string | null,
+    note?: string,
+    durationSeconds?: number,
+  ) => {
+    const body: Record<string, unknown> = { startedAt, endedAt, note, durationSeconds };
+    if (taskId) body.taskId = taskId;
     const r = await mutate<TimeEntry>({
       method: 'POST',
       path: '/time-entries',
-      body: { taskId, startedAt, endedAt, note, durationSeconds },
+      body,
     });
     await clearCache('/time-entries');
     await clearCache('/tasks/');

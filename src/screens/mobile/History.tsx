@@ -41,7 +41,7 @@ export function HistoryScreen({ onBack }: { onBack: () => void }) {
             <div className="section-head"><span>{g.dayLabel}</span><span className="count mono">{fmtHM(g.total)}</span></div>
             <div className="card">
               {g.entries.map((e) => (
-                <div key={e.id} className="task" style={{ minHeight: 48 }} onClick={() => push({ kind: 'manual', entryId: e.id, taskId: e.taskId })}>
+                <div key={e.id} className="task" style={{ minHeight: 48 }} onClick={() => push({ kind: 'manual', entryId: e.id, taskId: e.taskId ?? undefined })}>
                   {!e.endedAt && <span className="pulse" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />}
                   <div className="grow">
                     <div className="title-line">{e.task?.title ?? 'Entry'}</div>

@@ -83,7 +83,7 @@ export interface Task {
 
 export interface TimeEntry {
   id: string;
-  taskId: string;
+  taskId: string | null;
   userId: string;
   startedAt: string;
   endedAt: string | null;

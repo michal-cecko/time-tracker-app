@@ -2,8 +2,9 @@ import { create } from 'zustand';
 
 export interface RunningTimer {
   entryId: string;
-  taskId: string;
-  taskTitle?: string;
+  // Nullable — the user can start an unassigned timer and categorise it later.
+  taskId: string | null;
+  taskTitle?: string | null;
   projectId?: string;
   projectColor?: string;
   startedAt: string; // ISO
