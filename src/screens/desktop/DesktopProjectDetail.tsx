@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { NestedTaskRow } from '@/components/ui/TaskRow';
 import { DeleteProjectModal } from '@/components/ui/DeleteProjectModal';
+import { EditProjectSheet } from '@/components/ui/sheets/EditProjectSheet';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
+import { projects as projectsApi } from '@/api/mutations';
 import type { Project, Task } from '@/api/types';
 import { fmtHM } from '@/utils/format';
 
@@ -20,6 +22,7 @@ export function DesktopProjectDetail({
   const [tasks, setTasks] = useState<Task[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const load = async () => {
     const [projects, tree] = await Promise.all([
@@ -52,7 +55,8 @@ export function DesktopProjectDetail({
           <div style={{ fontSize: 12.5, color: 'var(--text-3)' }}>{project.openTaskCount} open · {fmtHM(project.trackedSeconds)} tracked</div>
         </div>
         <span className="spacer" />
-        <button className="btn" onClick={async () => { await api(`/projects/${project.id}/${project.archived ? 'unarchive' : 'archive'}`, { method: 'POST' }); }}><Icon.Archive size={14} />{project.archived ? 'Unarchive' : 'Archive'}</button>
+        <button className="btn" onClick={() => setEditOpen(true)}><Icon.Edit size={14} />Edit</button>
+        <button className="btn" onClick={async () => { try { project.archived ? await projectsApi.unarchive(project.id) : await projectsApi.archive(project.id); load(); } catch {} }}><Icon.Archive size={14} />{project.archived ? 'Unarchive' : 'Archive'}</button>
         <button
           className="btn"
           onClick={() => setConfirmDelete(true)}
@@ -84,6 +88,14 @@ export function DesktopProjectDetail({
             setConfirmDelete(false);
             onDeleted?.();
           }}
+        />
+      )}
+
+      {editOpen && (
+        <EditProjectSheet
+          project={project}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => load()}
         />
       )}
     </>

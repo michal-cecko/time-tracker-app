@@ -10,32 +10,44 @@ import { CalendarScreen } from './Calendar';
 import { ReportsScreen } from './Reports';
 import { HistoryScreen } from './History';
 import { SearchScreen } from './Search';
-import { FocusScreen } from './Focus';
 import { QuickAddSheet } from './QuickAdd';
 import { ManualEntryScreen } from './ManualEntry';
 import { SettingsScreen } from './Settings';
 import { TweaksPanel } from './TweaksPanel';
 import { api } from '@/api/client';
+import { onRealtime } from '@/api/websocket';
 import { useRunning } from '@/state/running';
+import type { Task, TimeEntry } from '@/api/types';
 
 export function MobileShell() {
   const { tab, setTab, stack, push, back } = useNav();
   const setRunning = useRunning((s) => s.setRunning);
 
-  // Boot: hydrate running timer state once.
+  // Hydrate the running timer state and keep it in sync with the server
+  // via the realtime WS so any device's start/stop ripples to all clients.
   useEffect(() => {
-    (async () => {
+    const hydrate = async () => {
       try {
-        const r = await api('/time-entries/running');
+        const r = await api<TimeEntry | null>('/time-entries/running');
         if (r?.id) {
-          setRunning({
-            entryId: r.id,
-            taskId: r.taskId,
-            startedAt: r.startedAt,
-          });
+          // Best-effort task title lookup so the mini-bar reads nicely.
+          let title: string | undefined;
+          try {
+            const t = await api<Task>(`/tasks/${r.taskId}`);
+            title = t.title;
+          } catch {}
+          setRunning({ entryId: r.id, taskId: r.taskId, taskTitle: title, startedAt: r.startedAt });
+        } else {
+          setRunning(null);
         }
       } catch {}
-    })();
+    };
+    hydrate();
+    const offs = [
+      onRealtime('timer.started', hydrate),
+      onRealtime('timer.stopped', () => setRunning(null)),
+    ];
+    return () => offs.forEach((o) => o());
   }, [setRunning]);
 
   const top = stack[stack.length - 1];
@@ -63,7 +75,7 @@ export function MobileShell() {
     }
   };
 
-  const modal = stack.find((e) => e.kind === 'tweaks' || e.kind === 'quickAdd' || e.kind === 'focus' || e.kind === 'syncSheet');
+  const modal = stack.find((e) => e.kind === 'tweaks' || e.kind === 'quickAdd' || e.kind === 'syncSheet');
 
   return (
     <>
@@ -72,7 +84,6 @@ export function MobileShell() {
       <TabBar tab={tab} onChange={setTab} onTimer={() => push({ kind: 'quickAdd' })} />
       {modal?.kind === 'tweaks'   && <TweaksPanel onClose={back} />}
       {modal?.kind === 'quickAdd' && <QuickAddSheet onClose={back} />}
-      {modal?.kind === 'focus'    && <FocusScreen onClose={back} />}
     </>
   );
 }

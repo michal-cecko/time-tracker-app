@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ThemeProvider } from '@/components/ui/ThemeProvider';
+import { OfflineBanner } from '@/components/ui/OfflineBanner';
 import { isNative, isDesktopViewport } from '@/utils/platform';
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
 import { AuthRouter } from '@/auth/AuthRouter';
@@ -55,6 +56,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
+        <OfflineBanner />
         <Routed />
       </AuthProvider>
     </ThemeProvider>

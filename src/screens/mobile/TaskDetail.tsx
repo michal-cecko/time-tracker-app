@@ -4,6 +4,12 @@ import { StatusPill, StatusPicker } from '@/components/ui/Status';
 import { PriorityFlag } from '@/components/ui/PriorityFlag';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { NestedTaskRow } from '@/components/ui/TaskRow';
+import { ActionSheet } from '@/components/ui/sheets/ActionSheet';
+import { ConfirmSheet } from '@/components/ui/sheets/ConfirmSheet';
+import { EditTaskSheet } from '@/components/ui/sheets/EditTaskSheet';
+import { MoveTaskSheet } from '@/components/ui/sheets/MoveTaskSheet';
+import { EditEntrySheet } from '@/components/ui/sheets/EditEntrySheet';
+import { tasks as tasksApi, entries as entriesApi } from '@/api/mutations';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import type { ActivityLog, BillingMode, Task, TimeEntry } from '@/api/types';
@@ -18,8 +24,14 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
   const [picker, setPicker] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [billingDraft, setBillingDraft] = useState<{ mode: BillingMode; rate: string; price: string } | null>(null);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [entryEdit, setEntryEdit] = useState<TimeEntry | null>(null);
+  const [entryDelete, setEntryDelete] = useState<TimeEntry | null>(null);
   const { push } = useNav();
-  const { elapsed, running, tick } = useRunning();
+  const { elapsed, running, tick, setRunning } = useRunning();
 
   const load = async () => {
     const t = await api<Task>(`/tasks/${id}`);
@@ -56,8 +68,19 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
   const tracked = isRunning ? elapsed : task.totalTime;
 
   const startStop = async () => {
-    if (isRunning) await api('/time-entries/stop', { method: 'POST' });
-    else await api('/time-entries/start', { method: 'POST', body: { taskId: task.id } });
+    // Optimistically flip useRunning so the button reacts instantly. WS events
+    // arriving later will reconcile.
+    if (isRunning) {
+      setRunning(null);
+      try { await api('/time-entries/stop', { method: 'POST' }); } catch { /* offline → optimistic state stays */ }
+    } else {
+      const optimisticStartedAt = new Date().toISOString();
+      setRunning({ entryId: 'pending', taskId: task.id, taskTitle: task.title, startedAt: optimisticStartedAt });
+      try {
+        const entry = await api<TimeEntry>('/time-entries/start', { method: 'POST', body: { taskId: task.id } });
+        setRunning({ entryId: entry.id, taskId: entry.taskId, taskTitle: task.title, startedAt: entry.startedAt });
+      } catch { /* keep optimistic state for offline */ }
+    }
   };
 
   const setStatus = async (s: typeof task.status) => {
@@ -93,7 +116,7 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
       <div className="app-header">
         <button className="icon-btn" onClick={onBack} aria-label="Back"><Icon.ChevronLeft /></button>
         <span className="spacer" />
-        <button className="icon-btn" aria-label="More"><Icon.More /></button>
+        <button className="icon-btn" onClick={() => setActionsOpen(true)} aria-label="More"><Icon.More /></button>
       </div>
 
       <div className="scroll">
@@ -254,8 +277,8 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
                     {e.note && <><span className="sep" /><span>{e.note}</span></>}
                   </div>
                 </div>
-                <button className="icon-btn" onClick={() => push({ kind: 'manual', entryId: e.id, taskId: e.taskId })} aria-label="Edit"><Icon.Edit size={14} /></button>
-                <button className="icon-btn" onClick={() => deleteEntry(e.id)} aria-label="Delete"><Icon.Trash size={14} /></button>
+                <button className="icon-btn" onClick={() => setEntryEdit(e)} aria-label="Edit"><Icon.Edit size={14} /></button>
+                <button className="icon-btn" onClick={() => setEntryDelete(e)} aria-label="Delete"><Icon.Trash size={14} /></button>
               </div>
             ))}
           </div>
@@ -290,6 +313,67 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
           current={task.status}
           onPick={setStatus}
           onClose={() => setPicker(false)}
+        />
+      )}
+
+      {actionsOpen && (
+        <ActionSheet
+          title={task.title}
+          subtitle="Task actions"
+          actions={[
+            { label: 'Edit', icon: <Icon.Edit size={14} />, onClick: () => setEditOpen(true) },
+            { label: 'Move to…', icon: <Icon.ChevronRight size={14} />, onClick: () => setMoveOpen(true) },
+            { label: 'Duplicate', icon: <Icon.Plus size={14} />, onClick: async () => { try { await tasksApi.duplicate(task.id); } catch {} } },
+            { label: 'Delete', danger: true, icon: <Icon.Trash size={14} />, onClick: () => setConfirmDelete(true) },
+          ]}
+          onClose={() => setActionsOpen(false)}
+        />
+      )}
+
+      {editOpen && (
+        <EditTaskSheet
+          task={task}
+          onClose={() => setEditOpen(false)}
+          onMove={() => setMoveOpen(true)}
+          onDelete={() => setConfirmDelete(true)}
+          onSaved={load}
+        />
+      )}
+
+      {moveOpen && (
+        <MoveTaskSheet task={task} onClose={() => setMoveOpen(false)} onMoved={load} />
+      )}
+
+      {confirmDelete && (
+        <ConfirmSheet
+          title="Delete task?"
+          message={`"${task.title}" and any subtasks + time entries will be permanently removed.`}
+          confirmLabel="Delete"
+          onConfirm={async () => {
+            try { await tasksApi.remove(task.id); } catch {}
+            onBack();
+          }}
+          onClose={() => setConfirmDelete(false)}
+        />
+      )}
+
+      {entryEdit && (
+        <EditEntrySheet
+          entry={entryEdit}
+          onClose={() => setEntryEdit(null)}
+          onDeleteRequest={() => setEntryDelete(entryEdit)}
+        />
+      )}
+
+      {entryDelete && (
+        <ConfirmSheet
+          title="Delete entry?"
+          message="This time entry will be permanently removed."
+          confirmLabel="Delete"
+          onConfirm={async () => {
+            try { await entriesApi.remove(entryDelete.id); load(); } catch {}
+          }}
+          onClose={() => setEntryDelete(null)}
         />
       )}
     </>

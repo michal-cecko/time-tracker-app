@@ -8,7 +8,6 @@ export type StackEntry =
   | { kind: 'manual'; entryId?: string; taskId?: string }
   | { kind: 'settings' }
   | { kind: 'search' }
-  | { kind: 'focus' }
   | { kind: 'quickAdd' }
   | { kind: 'tweaks' }
   | { kind: 'syncSheet' };

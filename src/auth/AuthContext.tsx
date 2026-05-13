@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, bootstrapAuth, clearTokens, persistTokens, setAuthFailedHandler, apiAuth, isOffline, OfflineError } from '@/api/client';
 import { connectRealtime, disconnectRealtime } from '@/api/websocket';
+import { prefetchAll } from '@/api/prefetch';
 import type { User } from '@/api/types';
 import { useTweaks } from '@/state/tweaks';
 
@@ -81,6 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
         }
         connectRealtime();
+        // Warm the whole read-cache so every screen is navigable offline.
+        prefetchAll();
       } catch (e) {
         // Network error → keep the cached user so the app is still usable.
         // Real 401s clear via setAuthFailedHandler above.
@@ -93,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, [hydrateTweaks]);
 
-  // When the network comes back, try to re-sync identity + reopen WS.
+  // When the network comes back, try to re-sync identity + reopen WS + rewarm.
   useEffect(() => {
     const onUp = async () => {
       try {
@@ -102,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(u);
         writeCachedUser(u);
         connectRealtime();
+        prefetchAll();
       } catch { /* still offline or auth lost; ignore */ }
     };
     window.addEventListener('online', onUp);
@@ -128,6 +132,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch {}
       connectRealtime();
+      // Warm the read-cache in the background so every screen is offline-ready
+      // before the user even navigates there.
+      prefetchAll();
     },
     signup: async (email, password, name) => {
       const { user: u, accessToken, refreshToken } = await apiAuth.register(email, password, name);
@@ -135,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(u);
       writeCachedUser(u);
       connectRealtime();
+      prefetchAll();
     },
     logout: async () => {
       disconnectRealtime();

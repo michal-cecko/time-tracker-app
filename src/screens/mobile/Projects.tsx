@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Icon } from '@/components/ui/Icon';
+import { ActionSheet } from '@/components/ui/sheets/ActionSheet';
+import { ConfirmSheet } from '@/components/ui/sheets/ConfirmSheet';
+import { EditProjectSheet } from '@/components/ui/sheets/EditProjectSheet';
+import { DeleteProjectModal } from '@/components/ui/DeleteProjectModal';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
+import { projects as projectsApi } from '@/api/mutations';
 import type { Project } from '@/api/types';
 import { fmtHM } from '@/utils/format';
 import { useNav } from '@/state/stack';
@@ -10,6 +15,10 @@ import { useNav } from '@/state/stack';
 export function ProjectsScreen() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [showArchived, setShowArchived] = useState(false);
+  const [actionsOn, setActionsOn] = useState<Project | null>(null);
+  const [editOn, setEditOn] = useState<Project | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Project | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const { push } = useNav();
 
   const load = async () => setProjects(await api<Project[]>('/projects?archived=all'));
@@ -30,6 +39,7 @@ export function ProjectsScreen() {
         sub={`${active.length} active${archived.length ? ` · ${archived.length} archived` : ''}`}
         right={
           <>
+            <button className="icon-btn" onClick={() => setCreateOpen(true)} aria-label="New project"><Icon.Plus /></button>
             <button className="icon-btn" onClick={() => push({ kind: 'search' })} aria-label="Search"><Icon.Search /></button>
             <button className="icon-btn" onClick={() => push({ kind: 'settings' })} aria-label="More"><Icon.More /></button>
           </>
@@ -48,9 +58,18 @@ export function ProjectsScreen() {
                   <div className="meta">{p.openTaskCount} open{p.openTaskCount === 1 ? '' : 's'}</div>
                 </div>
                 <span className="mono right" style={{ color: 'var(--text-2)', fontSize: 13 }}>{fmtHM(p.trackedSeconds)}</span>
-                <Icon.ChevronRight size={14} />
+                <button
+                  className="icon-btn"
+                  onClick={(e) => { e.stopPropagation(); setActionsOn(p); }}
+                  aria-label="Project actions"
+                ><Icon.More size={14} /></button>
               </div>
             ))}
+            {active.length === 0 && (
+              <div style={{ padding: 24, color: 'var(--text-3)', textAlign: 'center', fontSize: 13 }}>
+                No active projects yet. <button className="auth-link" onClick={() => setCreateOpen(true)}>Create one</button>.
+              </div>
+            )}
           </div>
         </div>
 
@@ -74,6 +93,11 @@ export function ProjectsScreen() {
                       <div className="meta">{p.archivedAt ? `Archived ${new Date(p.archivedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}` : 'Archived'}</div>
                     </div>
                     <span className="mono right" style={{ color: 'var(--text-3)', fontSize: 13 }}>{fmtHM(p.trackedSeconds)}</span>
+                    <button
+                      className="icon-btn"
+                      onClick={(e) => { e.stopPropagation(); setActionsOn(p); }}
+                      aria-label="Project actions"
+                    ><Icon.More size={14} /></button>
                   </div>
                 ))}
               </div>
@@ -82,6 +106,46 @@ export function ProjectsScreen() {
         )}
         <div style={{ height: 80 }} />
       </div>
+
+      {actionsOn && (
+        <ActionSheet
+          title={actionsOn.name}
+          subtitle="Project actions"
+          actions={[
+            { label: 'Edit', icon: <Icon.Edit size={14} />, onClick: () => setEditOn(actionsOn) },
+            {
+              label: actionsOn.archived ? 'Unarchive' : 'Archive',
+              icon: <Icon.Archive size={14} />,
+              onClick: async () => { try { actionsOn.archived ? await projectsApi.unarchive(actionsOn.id) : await projectsApi.archive(actionsOn.id); load(); } catch {} },
+            },
+            { label: 'Delete', danger: true, icon: <Icon.Trash size={14} />, onClick: () => setConfirmDelete(actionsOn) },
+          ]}
+          onClose={() => setActionsOn(null)}
+        />
+      )}
+
+      {editOn && (
+        <EditProjectSheet
+          project={editOn}
+          onClose={() => setEditOn(null)}
+          onSaved={() => load()}
+        />
+      )}
+
+      {createOpen && (
+        <EditProjectSheet
+          onClose={() => setCreateOpen(false)}
+          onSaved={() => load()}
+        />
+      )}
+
+      {confirmDelete && (
+        <DeleteProjectModal
+          project={{ id: confirmDelete.id, name: confirmDelete.name }}
+          onClose={() => setConfirmDelete(null)}
+          onDeleted={() => { setConfirmDelete(null); load(); }}
+        />
+      )}
     </>
   );
 }

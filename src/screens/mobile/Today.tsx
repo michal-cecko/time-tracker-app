@@ -136,7 +136,6 @@ export function TodayScreen() {
               )}
               <div className="hstack" style={{ gap: 8, marginTop: 14 }}>
                 <button className="btn primary" onClick={stopTimer}><Icon.Pause size={14} />Pause</button>
-                <button className="btn" onClick={() => push({ kind: 'focus' })}>Focus</button>
                 <button className="btn" onClick={() => push({ kind: 'task', id: data.runningTask!.id })}>Open task</button>
               </div>
             </div>
