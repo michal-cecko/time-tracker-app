@@ -10,6 +10,8 @@ import { EditTaskSheet } from '@/components/ui/sheets/EditTaskSheet';
 import { MoveTaskSheet } from '@/components/ui/sheets/MoveTaskSheet';
 import { EditEntrySheet } from '@/components/ui/sheets/EditEntrySheet';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
+import { RichEditor, type RichDoc } from '@/components/ui/RichEditor';
+import { useDebouncedCallback } from '@/utils/debounce';
 import { QuickAddSheet } from './QuickAdd';
 import { tasks as tasksApi, entries as entriesApi } from '@/api/mutations';
 import { api } from '@/api/client';
@@ -274,17 +276,12 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
           </div>
         </div>
 
-        {task.description != null && (
-          <div className="section">
-            <div className="section-head"><span>Description</span></div>
-            <div className="card wys">
-              {/* Description is stored as JSON; for now render its `text` flat-string if present */}
-              {typeof task.description === 'object' && (task.description as any).text
-                ? <p>{(task.description as any).text}</p>
-                : <p style={{ color: 'var(--text-3)' }}>No description yet.</p>}
-            </div>
+        <div className="section">
+          <div className="section-head"><span>Description</span></div>
+          <div className="card" style={{ padding: 8 }}>
+            <TaskDescriptionEditor task={task} onLocal={(doc) => setTask((t) => t ? { ...t, description: doc } : t)} />
           </div>
-        )}
+        </div>
 
         <div className="section">
           <div className="section-head">
@@ -422,5 +419,18 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
         />
       )}
     </>
+  );
+}
+
+function TaskDescriptionEditor({ task, onLocal }: { task: Task; onLocal: (doc: RichDoc) => void }) {
+  const save = useDebouncedCallback((doc: RichDoc) => {
+    void tasksApi.update(task.id, { description: doc as Record<string, unknown> });
+  }, 600);
+  return (
+    <RichEditor
+      value={(task.description as RichDoc | null) ?? null}
+      placeholder="Add a description…"
+      onChange={(doc) => { onLocal(doc); save(doc); }}
+    />
   );
 }

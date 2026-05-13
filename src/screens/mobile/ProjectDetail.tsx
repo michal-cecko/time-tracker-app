@@ -11,6 +11,8 @@ import { onRealtime } from '@/api/websocket';
 import { projects as projectsApi } from '@/api/mutations';
 import type { Project, Task, Status } from '@/api/types';
 import { fmtHM, fmtMoneyCents } from '@/utils/format';
+import { RichEditor, type RichDoc } from '@/components/ui/RichEditor';
+import { useDebouncedCallback } from '@/utils/debounce';
 import { useNav } from '@/state/stack';
 
 export function ProjectDetailScreen({ id, onBack }: { id: string; onBack: () => void }) {
@@ -117,6 +119,13 @@ export function ProjectDetailScreen({ id, onBack }: { id: string; onBack: () => 
         </div>
 
         <div className="section">
+          <div className="section-head"><span>Description</span></div>
+          <div className="card" style={{ padding: 8 }}>
+            <ProjectDescriptionEditor project={project} onLocal={(doc) => setProject((p) => p ? { ...p, description: doc } : p)} />
+          </div>
+        </div>
+
+        <div className="section">
           <div className="section-head">
             <span>Tasks</span>
             <span className="hstack" style={{ gap: 8 }}>
@@ -217,5 +226,18 @@ export function ProjectDetailScreen({ id, onBack }: { id: string; onBack: () => 
         />
       )}
     </>
+  );
+}
+
+function ProjectDescriptionEditor({ project, onLocal }: { project: Project; onLocal: (doc: RichDoc) => void }) {
+  const save = useDebouncedCallback((doc: RichDoc) => {
+    void projectsApi.update(project.id, { description: doc as Record<string, unknown> });
+  }, 600);
+  return (
+    <RichEditor
+      value={(project.description as RichDoc | null) ?? null}
+      placeholder="Add a description…"
+      onChange={(doc) => { onLocal(doc); save(doc); }}
+    />
   );
 }

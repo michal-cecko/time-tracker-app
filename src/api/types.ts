@@ -37,6 +37,8 @@ export interface Project {
   name: string;
   initials: string;
   colorHex: string;
+  // Tiptap JSON document (or null). Mirrors Task.description.
+  description: unknown | null;
   archived: boolean;
   archivedAt: string | null;
   createdAt: string;

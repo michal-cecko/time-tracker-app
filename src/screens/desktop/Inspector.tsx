@@ -9,6 +9,8 @@ import { EditTaskSheet } from '@/components/ui/sheets/EditTaskSheet';
 import { MoveTaskSheet } from '@/components/ui/sheets/MoveTaskSheet';
 import { EditEntrySheet } from '@/components/ui/sheets/EditEntrySheet';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
+import { RichEditor, type RichDoc } from '@/components/ui/RichEditor';
+import { useDebouncedCallback } from '@/utils/debounce';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import { tasks as tasksApi, entries as entriesApi } from '@/api/mutations';
@@ -144,6 +146,11 @@ export function Inspector({
         </div>
       )}
 
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Description</div>
+        <DescriptionEditor task={task} />
+      </div>
+
       {task.children.length > 0 && (
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Subtasks · {task.children.length}</div>
@@ -240,5 +247,22 @@ export function Inspector({
         />
       )}
     </div>
+  );
+}
+
+function DescriptionEditor({ task }: { task: Task }) {
+  const [local, setLocal] = useState<RichDoc | null>((task.description as RichDoc | null) ?? null);
+  // Re-seed when switching tasks (component is reused inside Inspector).
+  useEffect(() => { setLocal((task.description as RichDoc | null) ?? null); }, [task.id]);
+  const save = useDebouncedCallback((doc: RichDoc) => {
+    void tasksApi.update(task.id, { description: doc as Record<string, unknown> });
+  }, 600);
+  return (
+    <RichEditor
+      value={local}
+      placeholder="Add a description…"
+      onChange={(doc) => { setLocal(doc); save(doc); }}
+      compact
+    />
   );
 }

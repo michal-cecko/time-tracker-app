@@ -8,6 +8,8 @@ import { onRealtime } from '@/api/websocket';
 import { projects as projectsApi } from '@/api/mutations';
 import type { Project, Task } from '@/api/types';
 import { fmtHM } from '@/utils/format';
+import { RichEditor, type RichDoc } from '@/components/ui/RichEditor';
+import { useDebouncedCallback } from '@/utils/debounce';
 
 export function DesktopProjectDetail({
   id,
@@ -67,6 +69,11 @@ export function DesktopProjectDetail({
         <button className="btn primary"><Icon.Plus size={14} />New task</button>
       </div>
 
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 10.5, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Description</div>
+        <ProjectDescriptionEditor project={project} onLocal={(doc) => setProject((p) => p ? { ...p, description: doc } : p)} />
+      </div>
+
       <div className="card">
         {tasks.map((t) => (
           <NestedTaskRow
@@ -99,5 +106,19 @@ export function DesktopProjectDetail({
         />
       )}
     </>
+  );
+}
+
+function ProjectDescriptionEditor({ project, onLocal }: { project: Project; onLocal: (doc: RichDoc) => void }) {
+  const save = useDebouncedCallback((doc: RichDoc) => {
+    void projectsApi.update(project.id, { description: doc as Record<string, unknown> });
+  }, 600);
+  return (
+    <RichEditor
+      value={(project.description as RichDoc | null) ?? null}
+      placeholder="Add a description…"
+      onChange={(doc) => { onLocal(doc); save(doc); }}
+      compact
+    />
   );
 }

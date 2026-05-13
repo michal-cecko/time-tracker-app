@@ -73,7 +73,12 @@ export const projects = {
     return r.data;
   },
 
-  update: async (id: string, patch: Partial<{ name: string; initials: string; colorHex: string }>) => {
+  update: async (id: string, patch: Partial<{
+    name: string;
+    initials: string;
+    colorHex: string;
+    description: Record<string, unknown> | null;
+  }>) => {
     const r = await mutate<Project>({ method: 'PATCH', path: `/projects/${id}`, body: patch });
     await clearCache('/projects');
     return r.data;
