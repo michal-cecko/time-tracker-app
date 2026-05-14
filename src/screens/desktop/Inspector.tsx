@@ -11,7 +11,8 @@ import { useDebouncedCallback } from '@/utils/debounce';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import { tasks as tasksApi, entries as entriesApi } from '@/api/mutations';
-import type { Project, Task, TimeEntry } from '@/api/types';
+import type { ActivityLog, Project, Task, TimeEntry } from '@/api/types';
+import { STATUS_META } from '@/api/types';
 import { fmtClock, fmtHM, fmtHMS, fmtMoneyCents } from '@/utils/format';
 import { useRunning } from '@/state/running';
 
@@ -29,6 +30,7 @@ export function Inspector({
   const [task, setTask] = useState<Task | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
+  const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [picker, setPicker] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -41,16 +43,18 @@ export function Inspector({
   const load = async (id: string) => {
     const t = await api<Task>(`/tasks/${id}`);
     setTask(t);
-    const [es, p] = await Promise.all([
+    const [es, p, a] = await Promise.all([
       api<TimeEntry[]>(`/tasks/${id}/time-entries?descendants=true`),
       api<Project>(`/projects/${t.projectId}`).catch(() => null),
+      api<ActivityLog[]>(`/activity?taskId=${id}&limit=30`).catch(() => [] as ActivityLog[]),
     ]);
     setEntries(es);
     setProject(p);
+    setActivity(a);
   };
 
   useEffect(() => {
-    if (!taskId) { setTask(null); setProject(null); setEntries([]); return; }
+    if (!taskId) { setTask(null); setProject(null); setEntries([]); setActivity([]); return; }
     load(taskId);
     const offs = [
       onRealtime('task.upserted', (t: Task) => { if (t.id === taskId) load(taskId); }),
@@ -168,22 +172,32 @@ export function Inspector({
           <div className="dt-insp-section">
             <div className="dt-insp-sec-head">Billing</div>
             <div className="dt-bill">
-              <div>
-                <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
-                  {task.billingMode === 'TASK_PRICE' ? 'Task price' : task.billingMode === 'HOURLY_RATE' ? 'Hourly rate' : 'Rolled up'}
+              {task.billingMode !== 'NONE' && (
+                <div>
+                  <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
+                    {task.billingMode === 'TASK_PRICE' ? 'Task price' : 'Hourly rate'}
+                  </div>
+                  <div className="mono" style={{ fontSize: 18, fontWeight: 600 }}>
+                    {fmtMoneyCents(task.billingMode === 'TASK_PRICE' ? task.taskPriceCents : task.hourlyRateCents)}
+                    {task.billingMode === 'HOURLY_RATE' ? '/h' : ''}
+                  </div>
                 </div>
-                <div className="mono" style={{ fontSize: 18, fontWeight: 600 }}>
-                  {fmtMoneyCents(task.billingMode === 'TASK_PRICE' ? task.taskPriceCents : task.hourlyRateCents)}
-                  {task.billingMode === 'HOURLY_RATE' ? '/h' : ''}
+              )}
+              <div style={{ textAlign: task.billingMode === 'NONE' ? 'left' : 'right' }}>
+                <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
+                  Earned
+                </div>
+                <div className="mono" style={{ fontSize: 18, fontWeight: 600, color: 'var(--st-done)' }}>
+                  {fmtMoneyCents(task.earnedSoFarCents)}
                 </div>
               </div>
-              {(task.earnedSoFarCents ?? 0) > 0 && (
+              {task.billingMode === 'TASK_PRICE' && (
                 <div style={{ textAlign: 'right' }}>
                   <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
-                    Earned
+                    Projected
                   </div>
-                  <div className="mono" style={{ fontSize: 18, fontWeight: 600, color: 'var(--st-done)' }}>
-                    {fmtMoneyCents(task.earnedSoFarCents)}
+                  <div className="mono" style={{ fontSize: 18, fontWeight: 600 }}>
+                    {fmtMoneyCents(task.projectedTotalCents)}
                   </div>
                 </div>
               )}
@@ -252,6 +266,19 @@ export function Inspector({
             <DescriptionEditor task={task} />
           </div>
         </div>
+
+        {activity.length > 0 && (
+          <div className="dt-insp-section">
+            <div className="dt-insp-sec-head">
+              Activity <span className="dt-muted">· {activity.length}</span>
+            </div>
+            <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {activity.slice(0, 20).map((a) => (
+                <ActivityItem key={a.id} a={a} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {picker && (
@@ -312,6 +339,52 @@ export function Inspector({
         />
       )}
     </aside>
+  );
+}
+
+function ActivityItem({ a }: { a: ActivityLog }) {
+  const when = new Date(a.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-2)' }}>
+      <span className="mono dt-muted" style={{ fontSize: 11, minWidth: 88 }}>{when}</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>{renderActivity(a)}</span>
+    </div>
+  );
+}
+
+function renderActivity(a: ActivityLog): React.ReactNode {
+  switch (a.kind) {
+    case 'STATUS_CHANGED': {
+      const from = a.meta?.from as keyof typeof STATUS_META | undefined;
+      const to = a.meta?.to as keyof typeof STATUS_META | undefined;
+      return (
+        <>
+          Status:{' '}
+          {from && <StatusChip name={from} />}
+          <span style={{ margin: '0 6px', color: 'var(--text-3)' }}>→</span>
+          {to && <StatusChip name={to} />}
+        </>
+      );
+    }
+    case 'TASK_CREATED': return 'Task created';
+    case 'TASK_UPDATED': return 'Task updated';
+    case 'MANUAL_ENTRY_ADDED': return 'Manual entry added';
+    case 'TIME_TRACKED': return 'Time tracked';
+    case 'COMMENT': return 'Comment';
+    case 'OVER_ESTIMATE': return 'Over estimate';
+    default: return a.kind;
+  }
+}
+
+function StatusChip({ name }: { name: keyof typeof STATUS_META }) {
+  const meta = STATUS_META[name];
+  return (
+    <span
+      className="dt-chip"
+      style={{ background: `${meta.hex}1f`, color: meta.hex, padding: '1px 7px', fontSize: 10.5, fontWeight: 600, letterSpacing: '0.04em', borderRadius: 4 }}
+    >
+      {meta.label}
+    </span>
   );
 }
 

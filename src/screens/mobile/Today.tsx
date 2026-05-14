@@ -22,7 +22,10 @@ interface TodayData {
   urgent: TaskWithCtx[];
   alsoToday: TaskWithCtx[];
   runningTask: Task | null;
+  lastTrackedTask: Task | null;
 }
+
+const LAST_TRACKED_KEY = 'time-tracker:last-tracked-task-id';
 
 function isToday(d: string | null | undefined): boolean {
   if (!d) return false;
@@ -77,12 +80,25 @@ export function TodayScreen() {
           projectColor: proj.colorHex,
           startedAt: runningEntry.startedAt,
         });
+        try { localStorage.setItem(LAST_TRACKED_KEY, runningTask.id); } catch { /* ignore quota */ }
       }
     } else {
       setRunning(null);
     }
 
-    setData({ projects, runningEntry, weekly, urgent, alsoToday, runningTask });
+    // Pinned "last tracked" card — when nothing is running, fall back to the
+    // most recently tracked task so the user can resume with one tap.
+    let lastTrackedTask: Task | null = null;
+    if (!runningTask) {
+      let lastId: string | null = null;
+      try { lastId = localStorage.getItem(LAST_TRACKED_KEY); } catch { /* no storage */ }
+      if (lastId) {
+        const found = allTasks.find(({ task }) => task.id === lastId);
+        if (found) lastTrackedTask = found.task;
+      }
+    }
+
+    setData({ projects, runningEntry, weekly, urgent, alsoToday, runningTask, lastTrackedTask });
   };
 
   useEffect(() => {
@@ -119,34 +135,56 @@ export function TodayScreen() {
         }
       />
       <div className="scroll">
-        {data?.runningTask && (
-          <div className="section">
-            <div className="card hi" style={{ padding: 16 }}>
-              <div className="hstack" style={{ gap: 10, marginBottom: 10 }}>
-                <span className="pulse" style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--accent)' }} />
-                <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--accent)' }}>TRACKING NOW</span>
-                <span className="right muted mono" style={{ fontSize: 12 }}>
-                  {running ? new Date(running.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : ''}
-                </span>
-              </div>
-              <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 6 }}>{data.runningTask.title}</div>
-              <div className="bigtimer" style={{ color: 'var(--accent)', fontSize: 56, marginBottom: 12 }}>{fmtHMS(elapsed)}</div>
-              {data.runningTask.estimateSeconds && (
-                <>
-                  <ProgressBar pct={(elapsed / data.runningTask.estimateSeconds) * 100} over={elapsed > data.runningTask.estimateSeconds} />
-                  <div className="hstack" style={{ justifyContent: 'space-between', fontSize: 11.5, color: 'var(--text-3)', marginTop: 6 }}>
-                    <span className="mono">{fmtHM(elapsed)}</span>
-                    <span className="mono">{fmtHM(data.runningTask.estimateSeconds)}</span>
-                  </div>
-                </>
-              )}
-              <div className="hstack" style={{ gap: 8, marginTop: 14 }}>
-                <button className="btn primary" onClick={stopTimer}><Icon.Pause size={14} />Pause</button>
-                <button className="btn" onClick={() => push({ kind: 'task', id: data.runningTask!.id })}>Open task</button>
+        {(data?.runningTask || data?.lastTrackedTask) && (() => {
+          const isRunning = !!data.runningTask;
+          const t = (data.runningTask ?? data.lastTrackedTask)!;
+          const shown = isRunning ? elapsed : t.totalTime;
+          return (
+            <div className="section">
+              <div className="card hi" style={{ padding: 16 }}>
+                <div className="hstack" style={{ gap: 10, marginBottom: 10 }}>
+                  {isRunning ? (
+                    <>
+                      <span className="pulse" style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--accent)' }} />
+                      <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--accent)' }}>TRACKING NOW</span>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--text-4)' }} />
+                      <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--text-3)' }}>LAST TRACKED</span>
+                    </>
+                  )}
+                  <span className="right muted mono" style={{ fontSize: 12 }}>
+                    {isRunning && running
+                      ? new Date(running.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+                      : fmtRelative(new Date(t.updatedAt))}
+                  </span>
+                </div>
+                <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 6 }}>{t.title}</div>
+                <div className="bigtimer" style={{ color: isRunning ? 'var(--accent)' : 'var(--text)', fontSize: 56, marginBottom: 12 }}>
+                  {isRunning ? fmtHMS(shown) : fmtHM(shown)}
+                </div>
+                {t.estimateSeconds && (
+                  <>
+                    <ProgressBar pct={(shown / t.estimateSeconds) * 100} over={shown > t.estimateSeconds} />
+                    <div className="hstack" style={{ justifyContent: 'space-between', fontSize: 11.5, color: 'var(--text-3)', marginTop: 6 }}>
+                      <span className="mono">{fmtHM(shown)}</span>
+                      <span className="mono">{fmtHM(t.estimateSeconds)}</span>
+                    </div>
+                  </>
+                )}
+                <div className="hstack" style={{ gap: 8, marginTop: 14 }}>
+                  {isRunning ? (
+                    <button className="btn primary" onClick={stopTimer}><Icon.Pause size={14} />Pause</button>
+                  ) : (
+                    <button className="btn primary" onClick={() => playTask(t.id)}><Icon.Play size={14} />Resume</button>
+                  )}
+                  <button className="btn" onClick={() => push({ kind: 'task', id: t.id })}>Open task</button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {data && data.urgent.length > 0 && (
           <div className="section">

@@ -17,6 +17,7 @@ import { tasks as tasksApi, entries as entriesApi } from '@/api/mutations';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import type { ActivityLog, BillingMode, Project, Task, TimeEntry } from '@/api/types';
+import { STATUS_META } from '@/api/types';
 import { fmtClock, fmtHM, fmtHMS, fmtMoneyCents } from '@/utils/format';
 import { useNav } from '@/state/stack';
 import { useRunning } from '@/state/running';
@@ -222,19 +223,17 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
             )}
             {(billingDraft.mode !== 'NONE' || task.earnedSoFarCents != null) && (
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 10 }}>
-                  <div>
-                    <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Effective</div>
-                    <div className="mono" style={{ fontSize: 16, fontWeight: 600 }}>{fmtMoneyCents(task.effectiveRateCents)}/h</div>
-                  </div>
+                <div style={{ display: 'grid', gridTemplateColumns: billingDraft.mode === 'TASK_PRICE' ? '1fr 1fr' : '1fr', gap: 10, marginTop: 10 }}>
                   <div>
                     <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Earned</div>
                     <div className="mono" style={{ fontSize: 16, fontWeight: 600, color: 'var(--st-done)' }}>{fmtMoneyCents(task.earnedSoFarCents)}</div>
                   </div>
-                  <div>
-                    <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Projected</div>
-                    <div className="mono" style={{ fontSize: 16, fontWeight: 600 }}>{fmtMoneyCents(task.projectedTotalCents)}</div>
-                  </div>
+                  {billingDraft.mode === 'TASK_PRICE' && (
+                    <div>
+                      <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Projected</div>
+                      <div className="mono" style={{ fontSize: 16, fontWeight: 600 }}>{fmtMoneyCents(task.projectedTotalCents)}</div>
+                    </div>
+                  )}
                 </div>
                 {billingDraft.mode === 'NONE' && task.earnedSoFarCents != null && (
                   <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 8 }}>
@@ -321,16 +320,12 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
           <div className="section">
             <div className="section-head"><span>Activity</span><span className="count">{activity.length}</span></div>
             <div className="card" style={{ padding: 12 }}>
-              {activity.slice(0, 10).map((a) => (
-                <div key={a.id} className="hstack" style={{ padding: '6px 0', fontSize: 12.5, color: 'var(--text-2)' }}>
-                  <span className="mono muted">{new Date(a.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                  <span>·</span>
-                  <span>
-                    {a.kind === 'STATUS_CHANGED' && `Status → ${a.meta?.to}`}
-                    {a.kind === 'TASK_CREATED' && 'Task created'}
-                    {a.kind === 'MANUAL_ENTRY_ADDED' && 'Manual entry added'}
-                    {a.kind === 'COMMENT' && 'Comment'}
-                    {a.kind === 'TIME_TRACKED' && 'Time tracked'}
+              {activity.slice(0, 20).map((a) => (
+                <div key={a.id} className="hstack" style={{ padding: '6px 0', fontSize: 12.5, color: 'var(--text-2)', flexWrap: 'wrap', gap: 6 }}>
+                  <span className="mono muted">{new Date(a.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}</span>
+                  <span style={{ color: 'var(--text-3)' }}>·</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                    {renderActivity(a)}
                   </span>
                 </div>
               ))}
@@ -419,6 +414,42 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
         />
       )}
     </>
+  );
+}
+
+function renderActivity(a: ActivityLog): React.ReactNode {
+  switch (a.kind) {
+    case 'STATUS_CHANGED': {
+      const from = a.meta?.from as keyof typeof STATUS_META | undefined;
+      const to = a.meta?.to as keyof typeof STATUS_META | undefined;
+      return (
+        <>
+          Status:{' '}
+          {from && <StatusChip name={from} />}
+          <span style={{ margin: '0 4px', color: 'var(--text-3)' }}>→</span>
+          {to && <StatusChip name={to} />}
+        </>
+      );
+    }
+    case 'TASK_CREATED': return 'Task created';
+    case 'TASK_UPDATED': return 'Task updated';
+    case 'MANUAL_ENTRY_ADDED': return 'Manual entry added';
+    case 'TIME_TRACKED': return 'Time tracked';
+    case 'COMMENT': return 'Comment';
+    case 'OVER_ESTIMATE': return 'Over estimate';
+    default: return a.kind;
+  }
+}
+
+function StatusChip({ name }: { name: keyof typeof STATUS_META }) {
+  const meta = STATUS_META[name];
+  return (
+    <span
+      className="pill"
+      style={{ background: `${meta.hex}1f`, color: meta.hex, padding: '1px 7px', fontSize: 10, fontWeight: 600, letterSpacing: '0.04em', borderRadius: 4, height: 'auto' }}
+    >
+      {meta.label}
+    </span>
   );
 }
 
