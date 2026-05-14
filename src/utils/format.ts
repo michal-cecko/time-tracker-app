@@ -1,13 +1,15 @@
-export function fmtHMS(secs: number): string {
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const s = Math.floor(secs % 60);
+export function fmtHMS(secs: number | null | undefined): string {
+  const n = Number.isFinite(secs as number) ? (secs as number) : 0;
+  const h = Math.floor(n / 3600);
+  const m = Math.floor((n % 3600) / 60);
+  const s = Math.floor(n % 60);
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-export function fmtHM(secs: number): string {
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
+export function fmtHM(secs: number | null | undefined): string {
+  const n = Number.isFinite(secs as number) ? (secs as number) : 0;
+  const h = Math.floor(n / 3600);
+  const m = Math.floor((n % 3600) / 60);
   if (h === 0) return `${m}m`;
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
