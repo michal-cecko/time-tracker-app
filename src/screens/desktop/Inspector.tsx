@@ -250,7 +250,11 @@ export function Inspector({
                 <div className="dt-bill">
                   <div style={{ textAlign: billingDraft.mode !== 'NONE' ? 'left' : undefined }}>
                     <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Earned</div>
-                    <div className="mono" style={{ fontSize: 18, fontWeight: 600, color: 'var(--st-done)' }}>{fmtMoneyCents(task.earnedSoFarCents)}</div>
+                    <div className="mono" style={{ fontSize: 18, fontWeight: 600, color: 'var(--st-done)' }}>
+                      {billingDraft.mode === 'HOURLY_RATE'
+                        ? fmtMoneyCents(Math.round((task.hourlyRateCents ?? 0) * tracked / 3600))
+                        : fmtMoneyCents(task.earnedSoFarCents)}
+                    </div>
                     {billingDraft.mode === 'HOURLY_RATE' && tracked > 0 && (
                       <div className="dt-muted" style={{ fontSize: 10 }}>{fmtMoneyCents(task.hourlyRateCents)}/h × {fmtHM(tracked)}</div>
                     )}
