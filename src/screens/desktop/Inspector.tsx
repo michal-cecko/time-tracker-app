@@ -13,7 +13,7 @@ import { useDebouncedCallback } from '@/utils/debounce';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import { tasks as tasksApi, entries as entriesApi } from '@/api/mutations';
-import type { ActivityLog, Project, Task, TimeEntry } from '@/api/types';
+import type { ActivityLog, BillingMode, Project, Task, TimeEntry } from '@/api/types';
 import { STATUS_META } from '@/api/types';
 import { fmtClock, fmtHM, fmtHMS, fmtMoneyCents } from '@/utils/format';
 import { useRunning } from '@/state/running';
@@ -42,11 +42,17 @@ export function Inspector({
   const [entryDelete, setEntryDelete] = useState<TimeEntry | null>(null);
   const [logOpen, setLogOpen] = useState(false);
   const [quickAddSubtask, setQuickAddSubtask] = useState(false);
+  const [billingDraft, setBillingDraft] = useState<{ mode: BillingMode; rate: string; price: string } | null>(null);
   const { running, elapsed, tick } = useRunning();
 
   const load = async (id: string) => {
     const t = await api<Task>(`/tasks/${id}`);
     setTask(t);
+    setBillingDraft({
+      mode: t.billingMode,
+      rate: t.hourlyRateCents != null ? (t.hourlyRateCents / 100).toString() : '',
+      price: t.taskPriceCents != null ? (t.taskPriceCents / 100).toString() : '',
+    });
     const [es, p, a] = await Promise.all([
       api<TimeEntry[]>(`/tasks/${id}/time-entries?descendants=true`),
       api<Project>(`/projects/${t.projectId}`).catch(() => null),
@@ -58,7 +64,7 @@ export function Inspector({
   };
 
   useEffect(() => {
-    if (!taskId) { setTask(null); setProject(null); setEntries([]); setActivity([]); return; }
+    if (!taskId) { setTask(null); setProject(null); setEntries([]); setActivity([]); setBillingDraft(null); return; }
     load(taskId);
     const offs = [
       onRealtime('task.upserted', (t: Task) => { if (t.id === taskId) load(taskId); }),
@@ -88,6 +94,22 @@ export function Inspector({
   const est = task.estimateSeconds;
   const pct = est ? (tracked / est) * 100 : 0;
   const over = est ? tracked > est : false;
+
+  const saveBilling = async (draft: { mode: BillingMode; rate: string; price: string }) => {
+    const patch: Record<string, unknown> = { billingMode: draft.mode };
+    if (draft.mode === 'HOURLY_RATE') {
+      patch.hourlyRateCents = Math.round(Number(draft.rate || 0) * 100);
+      patch.taskPriceCents = null;
+    } else if (draft.mode === 'TASK_PRICE') {
+      patch.taskPriceCents = Math.round(Number(draft.price || 0) * 100);
+      patch.hourlyRateCents = null;
+    } else {
+      patch.hourlyRateCents = null;
+      patch.taskPriceCents = null;
+    }
+    await api(`/tasks/${task.id}`, { method: 'PATCH', body: patch });
+    if (taskId) load(taskId);
+  };
 
   return (
     <aside className="dt-inspector">
@@ -172,37 +194,84 @@ export function Inspector({
           </div>
         </div>
 
-        {(task.billingMode !== 'NONE' || task.earnedSoFarCents != null) && (
+        {billingDraft && (
           <div className="dt-insp-section">
             <div className="dt-insp-sec-head">Billing</div>
-            <div className="dt-bill">
-              {task.billingMode !== 'NONE' && (
-                <div>
-                  <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
-                    {task.billingMode === 'TASK_PRICE' ? 'Task price' : 'Hourly rate'}
-                  </div>
-                  <div className="mono" style={{ fontSize: 18, fontWeight: 600 }}>
-                    {fmtMoneyCents(task.billingMode === 'TASK_PRICE' ? task.taskPriceCents : task.hourlyRateCents)}
-                    {task.billingMode === 'HOURLY_RATE' ? '/h' : ''}
-                  </div>
+            <div style={{ padding: '0 14px 14px' }}>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+                {(['NONE', 'HOURLY_RATE', 'TASK_PRICE'] as BillingMode[]).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => {
+                      const next = { ...billingDraft, mode: m };
+                      setBillingDraft(next);
+                      saveBilling(next);
+                    }}
+                    style={{
+                      flex: 1, height: 28,
+                      background: billingDraft.mode === m ? 'var(--accent-tint)' : 'var(--bg-elev-2)',
+                      color: billingDraft.mode === m ? 'var(--accent)' : 'var(--text-2)',
+                      borderRadius: 6, fontSize: 11, fontWeight: 500,
+                    }}
+                  >
+                    {m === 'NONE' ? 'None' : m === 'HOURLY_RATE' ? 'Hourly' : 'Fixed'}
+                  </button>
+                ))}
+              </div>
+
+              {billingDraft.mode === 'HOURLY_RATE' && (
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 4 }}>Rate (€/hour)</div>
+                  <input
+                    type="number" min={0} step={1}
+                    value={billingDraft.rate}
+                    onChange={(e) => setBillingDraft({ ...billingDraft, rate: e.target.value })}
+                    onBlur={() => saveBilling(billingDraft)}
+                    className="mono"
+                    style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-elev-2)', color: 'var(--text)', borderRadius: 6, fontSize: 14, fontWeight: 600, border: 'none', outline: 'none' }}
+                  />
                 </div>
               )}
-              <div style={{ textAlign: task.billingMode === 'NONE' ? 'left' : 'right' }}>
-                <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
-                  Earned
+              {billingDraft.mode === 'TASK_PRICE' && (
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 4 }}>Fixed price (€)</div>
+                  <input
+                    type="number" min={0} step={1}
+                    value={billingDraft.price}
+                    onChange={(e) => setBillingDraft({ ...billingDraft, price: e.target.value })}
+                    onBlur={() => saveBilling(billingDraft)}
+                    className="mono"
+                    style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-elev-2)', color: 'var(--text)', borderRadius: 6, fontSize: 14, fontWeight: 600, border: 'none', outline: 'none' }}
+                  />
                 </div>
-                <div className="mono" style={{ fontSize: 18, fontWeight: 600, color: 'var(--st-done)' }}>
-                  {fmtMoneyCents(task.earnedSoFarCents)}
-                </div>
-              </div>
-              {task.billingMode === 'TASK_PRICE' && (
-                <div style={{ textAlign: 'right' }}>
-                  <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
-                    Projected
+              )}
+
+              {(billingDraft.mode !== 'NONE' || task.earnedSoFarCents != null) && (
+                <div className="dt-bill">
+                  {billingDraft.mode !== 'NONE' && (
+                    <div>
+                      <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
+                        {billingDraft.mode === 'TASK_PRICE' ? 'Task price' : 'Hourly rate'}
+                      </div>
+                      <div className="mono" style={{ fontSize: 18, fontWeight: 600 }}>
+                        {fmtMoneyCents(billingDraft.mode === 'TASK_PRICE' ? task.taskPriceCents : task.hourlyRateCents)}
+                        {billingDraft.mode === 'HOURLY_RATE' ? '/h' : ''}
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ textAlign: billingDraft.mode === 'NONE' ? 'left' : 'right' }}>
+                    <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Earned</div>
+                    <div className="mono" style={{ fontSize: 18, fontWeight: 600, color: 'var(--st-done)' }}>{fmtMoneyCents(task.earnedSoFarCents)}</div>
                   </div>
-                  <div className="mono" style={{ fontSize: 18, fontWeight: 600 }}>
-                    {fmtMoneyCents(task.projectedTotalCents)}
-                  </div>
+                  {billingDraft.mode === 'TASK_PRICE' && (
+                    <div style={{ textAlign: 'right' }}>
+                      <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Projected</div>
+                      <div className="mono" style={{ fontSize: 18, fontWeight: 600 }}>{fmtMoneyCents(task.projectedTotalCents)}</div>
+                    </div>
+                  )}
+                  {billingDraft.mode === 'NONE' && task.earnedSoFarCents != null && (
+                    <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>Rolled up from subtasks</div>
+                  )}
                 </div>
               )}
             </div>
