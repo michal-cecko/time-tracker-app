@@ -8,6 +8,7 @@ import { MoveTaskSheet } from '@/components/ui/sheets/MoveTaskSheet';
 import { EditEntrySheet } from '@/components/ui/sheets/EditEntrySheet';
 import { LogEntrySheet } from '@/components/ui/sheets/LogEntrySheet';
 import { QuickAddSheet } from '@/screens/mobile/QuickAdd';
+import { branchEarnings, BillingMetricBar } from '@/components/ui/BillingMetrics';
 import { RichEditor, type RichDoc } from '@/components/ui/RichEditor';
 import { useDebouncedCallback } from '@/utils/debounce';
 import { api } from '@/api/client';
@@ -193,6 +194,27 @@ export function Inspector({
             <button className="dt-btn" onClick={() => setLogOpen(true)}><Icon.Plus size={11} /> Log</button>
           </div>
         </div>
+
+        {(() => {
+          const { earned, notInvoiced, hasBilling } = branchEarnings([task]);
+          if (!hasBilling) return null;
+          const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+          const thisMonthSecs = entries
+            .filter((e) => e.endedAt && new Date(e.startedAt) >= monthStart)
+            .reduce((s, e) => s + e.durationSeconds, 0);
+          const thisMonth = task.billingMode === 'HOURLY_RATE' && task.hourlyRateCents
+            ? Math.round(task.hourlyRateCents * thisMonthSecs / 3600)
+            : null;
+          return (
+            <div className="dt-insp-section" style={{ padding: '0 14px' }}>
+              <BillingMetricBar metrics={[
+                { label: 'Not invoiced', value: notInvoiced > 0 ? notInvoiced : null, accent: true },
+                { label: 'This month', value: thisMonth },
+                { label: 'Total earned', value: earned > 0 ? earned : null },
+              ]} />
+            </div>
+          );
+        })()}
 
         {billingDraft && (
           <div className="dt-insp-section">

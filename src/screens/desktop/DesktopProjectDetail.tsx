@@ -9,6 +9,7 @@ import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import { projects as projectsApi } from '@/api/mutations';
 import { QuickAddSheet } from '@/screens/mobile/QuickAdd';
+import { branchEarnings, BillingMetricBar } from '@/components/ui/BillingMetrics';
 import type { Project, Task } from '@/api/types';
 import { fmtHM } from '@/utils/format';
 
@@ -141,6 +142,20 @@ export function DesktopProjectDetail({ id, onSelectTask, onDeleted }: DesktopPro
           />
         </div>
       </div>
+
+      {(() => {
+        const { earned, notInvoiced, hasBilling } = branchEarnings(tasks);
+        if (!hasBilling) return null;
+        return (
+          <div style={{ padding: '0 14px' }}>
+            <BillingMetricBar metrics={[
+              { label: 'Not invoiced', value: notInvoiced > 0 ? notInvoiced : null, accent: true },
+              { label: 'This month', value: project.earnedLast30dCents },
+              { label: 'Total earned', value: earned > 0 ? earned : null },
+            ]} />
+          </div>
+        );
+      })()}
 
       <div className="dt-section dt-table">
         <div className="dt-table-head">
