@@ -5,26 +5,35 @@ export interface BranchEarnings {
   earned: number;
   notInvoiced: number;
   hasBilling: boolean;
+  hasHourly: boolean;
 }
 
-/** Recursively walks a task tree and sums earnings at every level. */
+/** Recursively walks a task tree and sums earnings at every level.
+ *  TASK_PRICE tasks only contribute when DONE or INVOICED — fixed price
+ *  is not earned until the work is complete. */
 export function branchEarnings(tasks: Task[]): BranchEarnings {
-  let earned = 0, notInvoiced = 0, hasBilling = false;
+  let earned = 0, notInvoiced = 0, hasBilling = false, hasHourly = false;
   const walk = (ts: Task[]) => {
     for (const t of ts) {
-      if (t.billingMode !== 'NONE') {
+      if (t.billingMode === 'HOURLY_RATE') {
         hasBilling = true;
-        const e = t.billingMode === 'HOURLY_RATE'
-          ? Math.round((t.hourlyRateCents ?? 0) * t.totalTime / 3600)
-          : (t.taskPriceCents ?? 0);
+        hasHourly = true;
+        const e = Math.round((t.hourlyRateCents ?? 0) * t.totalTime / 3600);
         earned += e;
         if (t.status !== 'INVOICED') notInvoiced += e;
+      } else if (t.billingMode === 'TASK_PRICE') {
+        hasBilling = true;
+        if (t.status === 'DONE' || t.status === 'INVOICED') {
+          const e = t.taskPriceCents ?? 0;
+          earned += e;
+          if (t.status !== 'INVOICED') notInvoiced += e;
+        }
       }
       if (t.children?.length) walk(t.children);
     }
   };
   walk(tasks);
-  return { earned, notInvoiced, hasBilling };
+  return { earned, notInvoiced, hasBilling, hasHourly };
 }
 
 interface Metric { label: string; value: number | null; accent?: boolean }

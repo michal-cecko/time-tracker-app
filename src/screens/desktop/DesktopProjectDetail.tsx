@@ -144,13 +144,13 @@ export function DesktopProjectDetail({ id, onSelectTask, onDeleted }: DesktopPro
       </div>
 
       {(() => {
-        const { earned, notInvoiced, hasBilling } = branchEarnings(tasks);
+        const { earned, notInvoiced, hasBilling, hasHourly } = branchEarnings(tasks);
         if (!hasBilling) return null;
         return (
           <div style={{ padding: '0 14px' }}>
             <BillingMetricBar metrics={[
               { label: 'Not invoiced', value: notInvoiced > 0 ? notInvoiced : null, accent: true },
-              { label: 'This month', value: project.earnedLast30dCents },
+              { label: 'This month', value: hasHourly ? project.earnedLast30dCents : null },
               { label: 'Total earned', value: earned > 0 ? earned : null },
             ]} />
           </div>

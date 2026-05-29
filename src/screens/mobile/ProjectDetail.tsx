@@ -90,7 +90,7 @@ export function ProjectDetailScreen({ id, onBack }: { id: string; onBack: () => 
             </div>
           </div>
           {(() => {
-            const { earned, notInvoiced, hasBilling } = branchEarnings(tasks);
+            const { earned, notInvoiced, hasBilling, hasHourly } = branchEarnings(tasks);
             if (!hasBilling) return null;
             return (
               <>
@@ -106,7 +106,7 @@ export function ProjectDetailScreen({ id, onBack }: { id: string; onBack: () => 
                     </div>
                   )}
                 </div>
-                {project.earnedLast30dCents != null && (
+                {hasHourly && project.earnedLast30dCents != null && (
                   <div className="hstack" style={{ gap: 10, marginTop: 10 }}>
                     <div className="card hi" style={{ padding: 14, flex: 1 }}>
                       <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>This month</div>
