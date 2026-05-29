@@ -204,6 +204,8 @@ export function Inspector({
             .reduce((s, e) => s + e.durationSeconds, 0);
           const thisMonth = task.billingMode === 'HOURLY_RATE' && task.hourlyRateCents
             ? Math.round(task.hourlyRateCents * thisMonthSecs / 3600)
+            : task.billingMode === 'TASK_PRICE' && task.status === 'INVOICED' && task.taskPriceCents && task.totalTime > 0
+            ? Math.round(task.taskPriceCents * thisMonthSecs / task.totalTime)
             : null;
           return (
             <div className="dt-insp-section" style={{ padding: '0 14px' }}>

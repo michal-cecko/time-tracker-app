@@ -18,7 +18,7 @@ export function branchEarnings(tasks: Task[]): BranchEarnings {
           ? Math.round((t.hourlyRateCents ?? 0) * t.totalTime / 3600)
           : (t.taskPriceCents ?? 0);
         earned += e;
-        if (t.status === 'DONE') notInvoiced += e;
+        if (t.status !== 'INVOICED') notInvoiced += e;
       }
       if (t.children?.length) walk(t.children);
     }

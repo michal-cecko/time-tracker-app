@@ -14,6 +14,7 @@ import { RichEditor, type RichDoc } from '@/components/ui/RichEditor';
 import { useDebouncedCallback } from '@/utils/debounce';
 import { QuickAddSheet } from './QuickAdd';
 import { tasks as tasksApi, entries as entriesApi } from '@/api/mutations';
+import { branchEarnings } from '@/components/ui/BillingMetrics';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import type { ActivityLog, BillingMode, Project, Task, TimeEntry } from '@/api/types';
@@ -182,6 +183,39 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
 
         <div className="section">
           <div className="section-head"><span>Billing</span></div>
+          {(() => {
+            const { earned, notInvoiced, hasBilling } = branchEarnings([task]);
+            if (!hasBilling) return null;
+            const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+            const thisMonthSecs = entries
+              .filter((e) => e.endedAt && new Date(e.startedAt) >= monthStart)
+              .reduce((s, e) => s + e.durationSeconds, 0);
+            const thisMonth = task.billingMode === 'HOURLY_RATE' && task.hourlyRateCents
+              ? Math.round(task.hourlyRateCents * thisMonthSecs / 3600)
+              : task.billingMode === 'TASK_PRICE' && task.status === 'INVOICED' && task.taskPriceCents && task.totalTime > 0
+              ? Math.round(task.taskPriceCents * thisMonthSecs / task.totalTime)
+              : null;
+            return (
+              <div className="hstack" style={{ gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+                <div className="card hi" style={{ padding: 14, flex: 1, minWidth: 100 }}>
+                  <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Total earned</div>
+                  <div className="mono" style={{ fontSize: 20, fontWeight: 600, marginTop: 4, color: 'var(--st-done)' }}>{fmtMoneyCents(earned)}</div>
+                </div>
+                {notInvoiced > 0 && (
+                  <div className="card hi" style={{ padding: 14, flex: 1, minWidth: 100 }}>
+                    <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Not invoiced</div>
+                    <div className="mono" style={{ fontSize: 20, fontWeight: 600, marginTop: 4, color: 'var(--st-return)' }}>{fmtMoneyCents(notInvoiced)}</div>
+                  </div>
+                )}
+                {thisMonth !== null && (
+                  <div className="card hi" style={{ padding: 14, flex: 1, minWidth: 100 }}>
+                    <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>This month</div>
+                    <div className="mono" style={{ fontSize: 20, fontWeight: 600, marginTop: 4, color: 'var(--st-done)' }}>{fmtMoneyCents(thisMonth)}</div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           <div className="card" style={{ padding: 14 }}>
             <div className="hstack" style={{ gap: 6, marginBottom: 10 }}>
               {(['NONE', 'HOURLY_RATE', 'TASK_PRICE'] as BillingMode[]).map((m) => (

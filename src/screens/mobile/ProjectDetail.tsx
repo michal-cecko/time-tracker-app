@@ -9,6 +9,7 @@ import { QuickAddSheet } from './QuickAdd';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import { projects as projectsApi } from '@/api/mutations';
+import { branchEarnings } from '@/components/ui/BillingMetrics';
 import type { Project, Task, Status } from '@/api/types';
 import { fmtHM, fmtMoneyCents } from '@/utils/format';
 import { RichEditor, type RichDoc } from '@/components/ui/RichEditor';
@@ -88,34 +89,40 @@ export function ProjectDetailScreen({ id, onBack }: { id: string; onBack: () => 
               <div className="mono" style={{ fontSize: 24, fontWeight: 600, marginTop: 4 }}>{project.openTaskCount}</div>
             </div>
           </div>
-          {project.earnedCents != null && (
-            <>
-              <div className="hstack" style={{ gap: 10, marginTop: 10 }}>
-                <div className="card hi" style={{ padding: 14, flex: 1 }}>
-                  <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Earned</div>
-                  <div className="mono" style={{ fontSize: 22, fontWeight: 600, marginTop: 4, color: 'var(--st-done)' }}>{fmtMoneyCents(project.earnedCents)}</div>
-                </div>
-                {project.projectedCents != null && (
+          {(() => {
+            const { earned, notInvoiced, hasBilling } = branchEarnings(tasks);
+            if (!hasBilling) return null;
+            return (
+              <>
+                <div className="hstack" style={{ gap: 10, marginTop: 10 }}>
                   <div className="card hi" style={{ padding: 14, flex: 1 }}>
-                    <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Projected</div>
-                    <div className="mono" style={{ fontSize: 22, fontWeight: 600, marginTop: 4 }}>{fmtMoneyCents(project.projectedCents)}</div>
+                    <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Total earned</div>
+                    <div className="mono" style={{ fontSize: 22, fontWeight: 600, marginTop: 4, color: 'var(--st-done)' }}>{fmtMoneyCents(earned)}</div>
+                  </div>
+                  {notInvoiced > 0 && (
+                    <div className="card hi" style={{ padding: 14, flex: 1 }}>
+                      <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Not invoiced</div>
+                      <div className="mono" style={{ fontSize: 22, fontWeight: 600, marginTop: 4, color: 'var(--st-return)' }}>{fmtMoneyCents(notInvoiced)}</div>
+                    </div>
+                  )}
+                </div>
+                {project.earnedLast30dCents != null && (
+                  <div className="hstack" style={{ gap: 10, marginTop: 10 }}>
+                    <div className="card hi" style={{ padding: 14, flex: 1 }}>
+                      <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>This month</div>
+                      <div className="mono" style={{ fontSize: 22, fontWeight: 600, marginTop: 4, color: 'var(--st-done)' }}>{fmtMoneyCents(project.earnedLast30dCents)}</div>
+                    </div>
+                    {project.effectiveRateCents != null && (
+                      <div className="card hi" style={{ padding: 14, flex: 1 }}>
+                        <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Eff. rate</div>
+                        <div className="mono" style={{ fontSize: 22, fontWeight: 600, marginTop: 4 }}>{fmtMoneyCents(project.effectiveRateCents)}<span style={{ fontSize: 13, color: 'var(--text-3)', fontWeight: 500 }}>/h</span></div>
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
-              <div className="hstack" style={{ gap: 10, marginTop: 10 }}>
-                <div className="card hi" style={{ padding: 14, flex: 1 }}>
-                  <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Last 30 days</div>
-                  <div className="mono" style={{ fontSize: 22, fontWeight: 600, marginTop: 4, color: 'var(--st-done)' }}>{fmtMoneyCents(project.earnedLast30dCents ?? 0)}</div>
-                </div>
-                {project.effectiveRateCents != null && (
-                  <div className="card hi" style={{ padding: 14, flex: 1 }}>
-                    <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Effective rate</div>
-                    <div className="mono" style={{ fontSize: 22, fontWeight: 600, marginTop: 4 }}>{fmtMoneyCents(project.effectiveRateCents)}<span style={{ fontSize: 13, color: 'var(--text-3)', fontWeight: 500 }}>/h</span></div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+              </>
+            );
+          })()}
         </div>
 
         <div className="section">
