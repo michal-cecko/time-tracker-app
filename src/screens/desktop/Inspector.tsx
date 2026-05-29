@@ -248,25 +248,29 @@ export function Inspector({
 
               {(billingDraft.mode !== 'NONE' || task.earnedSoFarCents != null) && (
                 <div className="dt-bill">
-                  {billingDraft.mode !== 'NONE' && (
-                    <div>
-                      <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
-                        {billingDraft.mode === 'TASK_PRICE' ? 'Task price' : 'Hourly rate'}
-                      </div>
-                      <div className="mono" style={{ fontSize: 18, fontWeight: 600 }}>
-                        {fmtMoneyCents(billingDraft.mode === 'TASK_PRICE' ? task.taskPriceCents : task.hourlyRateCents)}
-                        {billingDraft.mode === 'HOURLY_RATE' ? '/h' : ''}
-                      </div>
-                    </div>
-                  )}
-                  <div style={{ textAlign: billingDraft.mode === 'NONE' ? 'left' : 'right' }}>
+                  <div style={{ textAlign: billingDraft.mode !== 'NONE' ? 'left' : undefined }}>
                     <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Earned</div>
                     <div className="mono" style={{ fontSize: 18, fontWeight: 600, color: 'var(--st-done)' }}>{fmtMoneyCents(task.earnedSoFarCents)}</div>
+                    {billingDraft.mode === 'HOURLY_RATE' && tracked > 0 && (
+                      <div className="dt-muted" style={{ fontSize: 10 }}>{fmtMoneyCents(task.hourlyRateCents)}/h × {fmtHM(tracked)}</div>
+                    )}
                   </div>
-                  {billingDraft.mode === 'TASK_PRICE' && (
+                  {billingDraft.mode === 'HOURLY_RATE' && task.estimateSeconds != null && task.estimateSeconds > 0 && (
                     <div style={{ textAlign: 'right' }}>
-                      <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Projected</div>
-                      <div className="mono" style={{ fontSize: 18, fontWeight: 600 }}>{fmtMoneyCents(task.projectedTotalCents)}</div>
+                      <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Est. earn</div>
+                      <div className="mono" style={{ fontSize: 18, fontWeight: 600 }}>
+                        {fmtMoneyCents(Math.round((task.hourlyRateCents ?? 0) * (task.estimateSeconds / 3600)))}
+                      </div>
+                      <div className="dt-muted" style={{ fontSize: 10 }}>{fmtMoneyCents(task.hourlyRateCents)}/h × {fmtHM(task.estimateSeconds)}</div>
+                    </div>
+                  )}
+                  {billingDraft.mode === 'TASK_PRICE' && tracked > 0 && (
+                    <div style={{ textAlign: 'right' }}>
+                      <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Eff. rate</div>
+                      <div className="mono" style={{ fontSize: 18, fontWeight: 600 }}>
+                        {fmtMoneyCents(Math.round((task.taskPriceCents ?? 0) / (tracked / 3600)))}/h
+                      </div>
+                      <div className="dt-muted" style={{ fontSize: 10 }}>{fmtHM(tracked)} tracked</div>
                     </div>
                   )}
                   {billingDraft.mode === 'NONE' && task.earnedSoFarCents != null && (
