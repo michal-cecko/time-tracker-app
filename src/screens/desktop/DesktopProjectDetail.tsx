@@ -8,6 +8,7 @@ import { useDebouncedCallback } from '@/utils/debounce';
 import { api } from '@/api/client';
 import { onRealtime } from '@/api/websocket';
 import { projects as projectsApi } from '@/api/mutations';
+import { QuickAddSheet } from '@/screens/mobile/QuickAdd';
 import type { Project, Task } from '@/api/types';
 import { fmtHM } from '@/utils/format';
 
@@ -23,6 +24,7 @@ export function DesktopProjectDetail({ id, onSelectTask, onDeleted }: DesktopPro
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editOpen, setEditOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [quickAdd, setQuickAdd] = useState(false);
 
   const load = async () => {
     setProject(await api<Project>(`/projects/${id}`));
@@ -124,7 +126,7 @@ export function DesktopProjectDetail({ id, onSelectTask, onDeleted }: DesktopPro
                 style={{ color: 'var(--pri-urgent)' }}
                 onClick={() => setConfirmDelete(true)}
               ><Icon.Trash size={12} /> Delete</button>
-              <button className="dt-btn primary"><Icon.Plus size={12} /> New task</button>
+              <button className="dt-btn primary" onClick={() => setQuickAdd(true)}><Icon.Plus size={12} /> New task</button>
             </>
           )}
         </div>
@@ -165,6 +167,12 @@ export function DesktopProjectDetail({ id, onSelectTask, onDeleted }: DesktopPro
           project={project}
           onClose={() => setEditOpen(false)}
           onSaved={(p) => { setProject(p); setEditOpen(false); }}
+        />
+      )}
+      {quickAdd && (
+        <QuickAddSheet
+          defaultProjectId={id}
+          onClose={() => { setQuickAdd(false); load(); }}
         />
       )}
     </div>

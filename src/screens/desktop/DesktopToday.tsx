@@ -3,6 +3,7 @@ import { Icon } from '@/components/ui/Icon';
 import { StatusDot } from '@/components/ui/Status';
 import { api } from '@/api/client';
 import { entries as entriesApi } from '@/api/mutations';
+import { QuickAddSheet } from '@/screens/mobile/QuickAdd';
 import { onRealtime } from '@/api/websocket';
 import type { Project, Task, WeeklyReport } from '@/api/types';
 import { fmtDue, fmtHM } from '@/utils/format';
@@ -24,6 +25,7 @@ export function DesktopToday({
   const [urgent, setUrgent] = useState<Bucket[]>([]);
   const [also, setAlso] = useState<Bucket[]>([]);
   const [weekly, setWeekly] = useState<WeeklyReport | null>(null);
+  const [quickAdd, setQuickAdd] = useState(false);
 
   const load = async () => {
     const projects = await api<Project[]>('/projects?archived=false');
@@ -65,7 +67,7 @@ export function DesktopToday({
         </div>
         <div className="dt-page-actions">
           <button className="dt-btn"><Icon.Filter size={12} /> Filter</button>
-          <button className="dt-btn primary"><Icon.Plus size={12} /> New task</button>
+          <button className="dt-btn primary" onClick={() => setQuickAdd(true)}><Icon.Plus size={12} /> New task</button>
         </div>
       </div>
 
@@ -111,6 +113,9 @@ export function DesktopToday({
           </div>
           <WeekChart weekly={weekly} />
         </div>
+      )}
+      {quickAdd && (
+        <QuickAddSheet onClose={() => { setQuickAdd(false); load(); }} />
       )}
     </div>
   );

@@ -6,6 +6,8 @@ import { ConfirmSheet } from '@/components/ui/sheets/ConfirmSheet';
 import { EditTaskSheet } from '@/components/ui/sheets/EditTaskSheet';
 import { MoveTaskSheet } from '@/components/ui/sheets/MoveTaskSheet';
 import { EditEntrySheet } from '@/components/ui/sheets/EditEntrySheet';
+import { LogEntrySheet } from '@/components/ui/sheets/LogEntrySheet';
+import { QuickAddSheet } from '@/screens/mobile/QuickAdd';
 import { RichEditor, type RichDoc } from '@/components/ui/RichEditor';
 import { useDebouncedCallback } from '@/utils/debounce';
 import { api } from '@/api/client';
@@ -38,6 +40,8 @@ export function Inspector({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [entryEdit, setEntryEdit] = useState<TimeEntry | null>(null);
   const [entryDelete, setEntryDelete] = useState<TimeEntry | null>(null);
+  const [logOpen, setLogOpen] = useState(false);
+  const [quickAddSubtask, setQuickAddSubtask] = useState(false);
   const { running, elapsed, tick } = useRunning();
 
   const load = async (id: string) => {
@@ -164,7 +168,7 @@ export function Inspector({
             >
               {isRunning ? <><Icon.Pause size={12} /> Pause</> : <><Icon.Play size={11} /> Start timer</>}
             </button>
-            <button className="dt-btn"><Icon.Plus size={11} /> Log</button>
+            <button className="dt-btn" onClick={() => setLogOpen(true)}><Icon.Plus size={11} /> Log</button>
           </div>
         </div>
 
@@ -205,11 +209,12 @@ export function Inspector({
           </div>
         )}
 
-        {task.children && task.children.length > 0 && (
-          <div className="dt-insp-section">
-            <div className="dt-insp-sec-head">
-              Subtasks <span className="dt-muted">· {task.children.length}</span>
-            </div>
+        <div className="dt-insp-section">
+          <div className="dt-insp-sec-head">
+            Subtasks {task.children && task.children.length > 0 && <span className="dt-muted">· {task.children.length}</span>}
+            <button className="dt-ghost" style={{ marginLeft: 'auto', padding: '2px 6px', fontSize: 11 }} onClick={() => setQuickAddSubtask(true)}><Icon.Plus size={10} /> Add</button>
+          </div>
+          {task.children && task.children.length > 0 && (
             <div className="dt-sub-list">
               {task.children.map((c) => (
                 <div
@@ -224,8 +229,8 @@ export function Inspector({
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="dt-insp-section">
           <div className="dt-insp-sec-head">
@@ -336,6 +341,20 @@ export function Inspector({
           confirmLabel="Delete"
           onConfirm={async () => { try { await entriesApi.remove(entryDelete.id); if (taskId) load(taskId); } catch {} }}
           onClose={() => setEntryDelete(null)}
+        />
+      )}
+      {logOpen && (
+        <LogEntrySheet
+          taskId={task.id}
+          onClose={() => { setLogOpen(false); if (taskId) load(taskId); }}
+        />
+      )}
+      {quickAddSubtask && (
+        <QuickAddSheet
+          parentTaskId={task.id}
+          parentTaskTitle={task.title}
+          defaultProjectId={task.projectId}
+          onClose={() => { setQuickAddSubtask(false); if (taskId) load(taskId); }}
         />
       )}
     </aside>
