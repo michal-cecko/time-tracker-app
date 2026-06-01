@@ -92,6 +92,7 @@ export function Inspector({
 
   const isRunning = !!running && running.taskId === task.id;
   const tracked = isRunning ? elapsed : task.totalTime;
+  const totalTracked = task.totalTime + (isRunning ? elapsed : 0);
   const est = task.estimateSeconds;
   const pct = est ? (tracked / est) * 100 : 0;
   const over = est ? tracked > est : false;
@@ -292,13 +293,13 @@ export function Inspector({
                       <div className="dt-muted" style={{ fontSize: 10 }}>{fmtMoneyCents(task.hourlyRateCents)}/h × {fmtHM(task.estimateSeconds)}</div>
                     </div>
                   )}
-                  {billingDraft.mode === 'TASK_PRICE' && tracked > 0 && (
+                  {billingDraft.mode === 'TASK_PRICE' && totalTracked > 0 && (
                     <div style={{ textAlign: 'right' }}>
                       <div className="dt-muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Eff. rate</div>
                       <div className="mono" style={{ fontSize: 18, fontWeight: 600 }}>
-                        {fmtMoneyCents(Math.round((task.taskPriceCents ?? 0) / (tracked / 3600)))}/h
+                        {fmtMoneyCents(Math.round((task.taskPriceCents ?? 0) / (totalTracked / 3600)))}/h
                       </div>
-                      <div className="dt-muted" style={{ fontSize: 10 }}>{fmtHM(tracked)} tracked</div>
+                      <div className="dt-muted" style={{ fontSize: 10 }}>{fmtHM(totalTracked)} tracked</div>
                     </div>
                   )}
                   {billingDraft.mode === 'NONE' && task.earnedSoFarCents != null && (
