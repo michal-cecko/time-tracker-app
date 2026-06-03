@@ -121,12 +121,16 @@ export const entries = {
     return r.data;
   },
 
-  stopTimer: async () => {
+  // entryId targets a specific running timer (multiple can run at once). Omit
+  // it to stop the most recently started timer (legacy single-timer behaviour).
+  stopTimer: async (entryId?: string) => {
     const endedAt = new Date().toISOString();
+    const body: Record<string, unknown> = { endedAt };
+    if (entryId) body.entryId = entryId;
     const r = await mutate<TimeEntry>({
       method: 'POST',
       path: '/time-entries/stop',
-      body: { endedAt },
+      body,
     });
     await clearCache('/time-entries');
     await clearCache('/tasks/');

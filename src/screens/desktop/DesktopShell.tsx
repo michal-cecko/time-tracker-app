@@ -4,11 +4,12 @@ import { LogoMark } from '@/components/brand/Logo';
 import { api } from '@/api/client';
 import { entries as entriesApi } from '@/api/mutations';
 import { onRealtime } from '@/api/websocket';
-import { useRunning } from '@/state/running';
+import { useRunning, elapsedOf, fetchRunningTimers } from '@/state/running';
 import { useAuth } from '@/auth/AuthContext';
 import { platform } from '@/utils/platform';
 import { fmtHM, fmtHMS, fmtHoursShort, fmtInitials } from '@/utils/format';
-import type { Project, Task, TimeEntry } from '@/api/types';
+import type { Project } from '@/api/types';
+import { RunningTimersDropdown } from './RunningTimersDropdown';
 import { DesktopToday } from './DesktopToday';
 import { DesktopProjectDetail } from './DesktopProjectDetail';
 import { DesktopCalendar } from './DesktopCalendar';
@@ -43,27 +44,14 @@ export function DesktopShell() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [timerPanelOpen, setTimerPanelOpen] = useState(false);
-  const { running, elapsed, tick, setRunning } = useRunning();
+  const [timersOpen, setTimersOpen] = useState(false);
+  const { timers, now, tick, setTimers, removeTimer } = useRunning();
   const { user } = useAuth();
 
   const load = async () => setProjects(await api<Project[]>('/projects?archived=all'));
 
   const hydrateRunning = async () => {
-    try {
-      const entry = await api<TimeEntry | null>('/time-entries/running');
-      if (!entry || !entry.id) { setRunning(null); return; }
-      let title: string | null = null;
-      if (entry.taskId) {
-        const task = await api<Task>(`/tasks/${entry.taskId}`).catch(() => null);
-        title = task?.title ?? null;
-      }
-      setRunning({
-        entryId: entry.id,
-        taskId: entry.taskId ?? null,
-        taskTitle: title,
-        startedAt: entry.startedAt,
-      });
-    } catch { /* unauthenticated or offline; ignore */ }
+    try { setTimers(await fetchRunningTimers()); } catch { /* unauthenticated or offline; ignore */ }
   };
 
   useEffect(() => {
@@ -73,20 +61,23 @@ export function DesktopShell() {
       onRealtime('project.upserted', load),
       onRealtime('project.deleted', load),
       onRealtime('timer.started', hydrateRunning),
-      onRealtime('timer.stopped', () => setRunning(null)),
+      onRealtime('timer.stopped', (e: { entryId?: string }) => {
+        if (e?.entryId) removeTimer(e.entryId); else hydrateRunning();
+      }),
     ];
     return () => offs.forEach((o) => o());
   }, []);
 
   useEffect(() => {
-    if (!running) return;
+    if (timers.length === 0) return;
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [running, tick]);
+  }, [timers.length, tick]);
 
+  const primary = timers[0] ?? null;
   useEffect(() => {
-    setSelectedTaskId((cur) => cur ?? running?.taskId ?? null);
-  }, [running?.taskId]);
+    setSelectedTaskId((cur) => cur ?? primary?.taskId ?? null);
+  }, [primary?.taskId]);
 
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
@@ -136,13 +127,30 @@ export function DesktopShell() {
           </button>
           <span className="tp-anchor">
             <DesktopTimerPill
-              running={!!running}
-              taskTitle={running?.taskTitle ?? null}
-              elapsed={elapsed}
-              onClick={() => setTimerPanelOpen((v) => !v)}
-              onStop={async () => { await entriesApi.stopTimer(); }}
-              ariaExpanded={timerPanelOpen}
+              primary={primary}
+              extraCount={Math.max(0, timers.length - 1)}
+              elapsed={primary ? elapsedOf(primary, now) : 0}
+              onClick={() => {
+                if (timers.length > 0) setTimersOpen((v) => !v);
+                else setTimerPanelOpen((v) => !v);
+              }}
+              onStop={async () => {
+                if (!primary) return;
+                removeTimer(primary.entryId);
+                await entriesApi.stopTimer(primary.entryId);
+              }}
+              ariaExpanded={timersOpen || timerPanelOpen}
             />
+            {timersOpen && (
+              <RunningTimersDropdown
+                timers={timers}
+                now={now}
+                onStop={async (entryId) => { removeTimer(entryId); await entriesApi.stopTimer(entryId); }}
+                onSelectTask={(id) => { setSelectedTaskId(id); setTimersOpen(false); }}
+                onTrackNew={() => { setTimersOpen(false); setTimerPanelOpen(true); }}
+                onClose={() => setTimersOpen(false)}
+              />
+            )}
             {timerPanelOpen && (
               <TimerPanel
                 onClose={() => setTimerPanelOpen(false)}
@@ -268,26 +276,26 @@ export function DesktopShell() {
 }
 
 interface PillProps {
-  running: boolean;
-  taskTitle: string | null;
+  primary: import('@/state/running').RunningTimer | null;
+  extraCount: number;
   elapsed: number;
   onClick: () => void;
   onStop: () => void | Promise<void>;
   ariaExpanded: boolean;
 }
-function DesktopTimerPill({ running, taskTitle, elapsed, onClick, onStop, ariaExpanded }: PillProps) {
+function DesktopTimerPill({ primary, extraCount, elapsed, onClick, onStop, ariaExpanded }: PillProps) {
   return (
     <button
-      className={`dt-timer-pill ${running ? 'running' : 'idle'}`}
+      className={`dt-timer-pill ${primary ? 'running' : 'idle'}`}
       onClick={onClick}
       aria-haspopup="dialog"
       aria-expanded={ariaExpanded}
     >
-      {running ? (
+      {primary ? (
         <>
           <span className="dt-tp-live" />
           <span className="dt-truncate" style={{ maxWidth: 180 }}>
-            {taskTitle ?? 'Tracking'}
+            {primary.taskTitle ?? 'Tracking'}
           </span>
           <span className="mono dt-tp-time">{fmtHMS(elapsed)}</span>
           <span
@@ -298,6 +306,7 @@ function DesktopTimerPill({ running, taskTitle, elapsed, onClick, onStop, ariaEx
           >
             <Icon.Pause size={11} />
           </span>
+          {extraCount > 0 && <span className="dt-tp-more">+{extraCount}</span>}
         </>
       ) : (
         <>

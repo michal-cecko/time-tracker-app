@@ -11,17 +11,17 @@ import { onRealtime } from '@/api/websocket';
 import type { Project, Task, TimeEntry, WeeklyReport } from '@/api/types';
 import { fmtHM, fmtHMS, fmtRelative } from '@/utils/format';
 import { useNav } from '@/state/stack';
-import { useRunning } from '@/state/running';
+import { useRunning, elapsedOf, combinedElapsed, type RunningTimer } from '@/state/running';
 
 interface TaskWithCtx { task: Task; project: Project }
 
 interface TodayData {
   projects: Project[];
-  runningEntry: TimeEntry | null;
   weekly: WeeklyReport | null;
   urgent: TaskWithCtx[];
   alsoToday: TaskWithCtx[];
-  runningTask: Task | null;
+  // task id → its task + project, for cross-referencing running timers.
+  taskById: Map<string, TaskWithCtx>;
   lastTrackedTask: Task | null;
 }
 
@@ -36,15 +36,25 @@ function isToday(d: string | null | undefined): boolean {
 
 export function TodayScreen() {
   const [data, setData] = useState<TodayData | null>(null);
+  const [heroExpanded, setHeroExpanded] = useState(true);
   const { push } = useNav();
-  const { setRunning, running, elapsed } = useRunning();
+  const { timers, now, tick, setTimers, upsertTimer, removeTimer } = useRunning();
+
+  // Keep elapsed live while any timer runs (MiniTimerBar also ticks, but Today
+  // can be visible without it).
+  useEffect(() => {
+    if (timers.length === 0) return;
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [timers.length, tick]);
 
   const load = async () => {
-    const [projects, runningEntry, weekly] = await Promise.all([
+    const [projects, runningRaw, weekly] = await Promise.all([
       api<Project[]>('/projects?archived=false'),
-      api<TimeEntry | null>('/time-entries/running'),
+      api<TimeEntry[]>('/time-entries/running').catch(() => [] as TimeEntry[]),
       api<WeeklyReport>('/reports/weekly'),
     ]);
+    const runningEntries = Array.isArray(runningRaw) ? runningRaw : runningRaw ? [runningRaw] : [];
 
     // For each active project, fetch its tasks tree → flatten leaves → pick urgent + today.
     const treeByProject = await Promise.all(projects.map((p) => api<Task[]>(`/projects/${p.id}/tasks`)));
@@ -66,39 +76,38 @@ export function TodayScreen() {
     const fallback = nonUrgent.filter(({ task }) => ['IN_PROGRESS', 'IN_REVIEW'].includes(task.status));
     const alsoToday = (strict.length ? strict : fallback).slice(0, 12);
 
-    let runningTask: Task | null = null;
-    if (runningEntry) {
-      const found = allTasks.find(({ task }) => task.id === runningEntry.taskId);
-      runningTask = found?.task ?? null;
-      if (runningTask) {
-        const proj = found!.project;
-        setRunning({
-          entryId: runningEntry.id,
-          taskId: runningEntry.taskId,
-          taskTitle: runningTask.title,
-          projectId: proj.id,
-          projectColor: proj.colorHex,
-          startedAt: runningEntry.startedAt,
-        });
-        try { localStorage.setItem(LAST_TRACKED_KEY, runningTask.id); } catch { /* ignore quota */ }
-      }
-    } else {
-      setRunning(null);
-    }
+    const taskById = new Map<string, TaskWithCtx>(allTasks.map((tc) => [tc.task.id, tc]));
+
+    // Hydrate the running-timer set from the array of open entries.
+    const runningTimers: RunningTimer[] = runningEntries.map((e) => {
+      const ctx = e.taskId ? taskById.get(e.taskId) : null;
+      return {
+        entryId: e.id,
+        taskId: e.taskId ?? null,
+        taskTitle: ctx?.task.title ?? null,
+        projectId: ctx?.project.id,
+        projectColor: ctx?.project.colorHex,
+        projectName: ctx?.project.name ?? null,
+        startedAt: e.startedAt,
+      };
+    });
+    setTimers(runningTimers);
+    const primaryTaskId = runningTimers.find((t) => t.taskId)?.taskId;
+    if (primaryTaskId) { try { localStorage.setItem(LAST_TRACKED_KEY, primaryTaskId); } catch { /* ignore quota */ } }
 
     // Pinned "last tracked" card — when nothing is running, fall back to the
     // most recently tracked task so the user can resume with one tap.
     let lastTrackedTask: Task | null = null;
-    if (!runningTask) {
+    if (runningTimers.length === 0) {
       let lastId: string | null = null;
       try { lastId = localStorage.getItem(LAST_TRACKED_KEY); } catch { /* no storage */ }
       if (lastId) {
-        const found = allTasks.find(({ task }) => task.id === lastId);
+        const found = taskById.get(lastId);
         if (found) lastTrackedTask = found.task;
       }
     }
 
-    setData({ projects, runningEntry, weekly, urgent, alsoToday, runningTask, lastTrackedTask });
+    setData({ projects, weekly, urgent, alsoToday, taskById, lastTrackedTask });
   };
 
   useEffect(() => {
@@ -115,11 +124,25 @@ export function TodayScreen() {
   const today = new Date();
   const sub = `${today.toLocaleDateString([], { weekday: 'long' })} · ${today.toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
 
-  const stopTimer = async () => {
-    try { await entriesApi.stopTimer(); } finally { setRunning(null); }
+  const stopTimer = async (entryId: string) => {
+    removeTimer(entryId);
+    try { await entriesApi.stopTimer(entryId); } catch { /* offline → optimistic stays */ }
   };
   const playTask = async (taskId: string) => {
-    await entriesApi.startTimer(taskId);
+    const ctx = data?.taskById.get(taskId) ?? null;
+    upsertTimer({
+      entryId: 'pending', taskId,
+      taskTitle: ctx?.task.title ?? null,
+      projectId: ctx?.project.id, projectColor: ctx?.project.colorHex, projectName: ctx?.project.name ?? null,
+      startedAt: new Date().toISOString(),
+    });
+    const entry = await entriesApi.startTimer(taskId);
+    if (entry) upsertTimer({
+      entryId: entry.id, taskId: entry.taskId ?? taskId,
+      taskTitle: ctx?.task.title ?? null,
+      projectId: ctx?.project.id, projectColor: ctx?.project.colorHex, projectName: ctx?.project.name ?? null,
+      startedAt: entry.startedAt,
+    });
   };
 
   return (
@@ -135,35 +158,72 @@ export function TodayScreen() {
         }
       />
       <div className="scroll">
-        {(data?.runningTask || data?.lastTrackedTask) && (() => {
-          const isRunning = !!data.runningTask;
-          const t = (data.runningTask ?? data.lastTrackedTask)!;
-          const shown = isRunning ? elapsed : t.totalTime;
+        {timers.length > 0 ? (
+          <div className="section">
+            {timers.length > 1 && (
+              <button
+                className="tracking-accordion"
+                onClick={() => setHeroExpanded((v) => !v)}
+                aria-expanded={heroExpanded}
+              >
+                <span className="pulse" style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--accent)' }} />
+                <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--accent)' }}>
+                  {timers.length} TIMERS RUNNING
+                </span>
+                <span className="right mono" style={{ fontSize: 13, color: 'var(--text-3)' }}>
+                  {fmtHMS(combinedElapsed(timers, now))} combined
+                </span>
+                <Icon.ChevronDown size={15} style={{ transform: heroExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', color: 'var(--text-3)' }} />
+              </button>
+            )}
+            {heroExpanded && timers.map((timer) => {
+              const task = timer.taskId ? data?.taskById.get(timer.taskId)?.task ?? null : null;
+              const shown = elapsedOf(timer, now);
+              const est = task?.estimateSeconds ?? null;
+              return (
+                <div key={timer.entryId} className="card hi" style={{ padding: 16, marginBottom: 10 }}>
+                  <div className="hstack" style={{ gap: 10, marginBottom: 10 }}>
+                    <span className="pulse" style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--accent)' }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--accent)' }}>RUNNING</span>
+                    {timer.projectName && (
+                      <span className="right hstack" style={{ gap: 6, fontSize: 12, color: 'var(--text-3)' }}>
+                        <span style={{ width: 9, height: 9, borderRadius: '50%', background: timer.projectColor ?? 'var(--accent)' }} />
+                        {timer.projectName}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 6 }}>{timer.taskTitle ?? 'Unassigned timer'}</div>
+                  <div className="bigtimer" style={{ color: 'var(--accent)', fontSize: 56, marginBottom: 12 }}>{fmtHMS(shown)}</div>
+                  {est && (
+                    <>
+                      <ProgressBar pct={(shown / est) * 100} over={shown > est} />
+                      <div className="hstack" style={{ justifyContent: 'space-between', fontSize: 11.5, color: 'var(--text-3)', marginTop: 6 }}>
+                        <span className="mono">{fmtHM(est)} est.</span>
+                        <span className="mono">{fmtHM(task?.totalTime ?? shown)} total</span>
+                      </div>
+                    </>
+                  )}
+                  <div className="hstack" style={{ gap: 8, marginTop: 14 }}>
+                    <button className="btn primary" onClick={() => stopTimer(timer.entryId)}><Icon.Pause size={14} />Pause</button>
+                    {timer.taskId && <button className="btn" onClick={() => push({ kind: 'task', id: timer.taskId! })}>Open task</button>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : data?.lastTrackedTask ? (() => {
+          const t = data.lastTrackedTask;
+          const shown = t.totalTime;
           return (
             <div className="section">
               <div className="card hi" style={{ padding: 16 }}>
                 <div className="hstack" style={{ gap: 10, marginBottom: 10 }}>
-                  {isRunning ? (
-                    <>
-                      <span className="pulse" style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--accent)' }} />
-                      <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--accent)' }}>TRACKING NOW</span>
-                    </>
-                  ) : (
-                    <>
-                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--text-4)' }} />
-                      <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--text-3)' }}>LAST TRACKED</span>
-                    </>
-                  )}
-                  <span className="right muted mono" style={{ fontSize: 12 }}>
-                    {isRunning && running
-                      ? new Date(running.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
-                      : fmtRelative(new Date(t.updatedAt))}
-                  </span>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--text-4)' }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--text-3)' }}>LAST TRACKED</span>
+                  <span className="right muted mono" style={{ fontSize: 12 }}>{fmtRelative(new Date(t.updatedAt))}</span>
                 </div>
                 <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 6 }}>{t.title}</div>
-                <div className="bigtimer" style={{ color: isRunning ? 'var(--accent)' : 'var(--text)', fontSize: 56, marginBottom: 12 }}>
-                  {isRunning ? fmtHMS(shown) : fmtHM(shown)}
-                </div>
+                <div className="bigtimer" style={{ color: 'var(--text)', fontSize: 56, marginBottom: 12 }}>{fmtHM(shown)}</div>
                 {t.estimateSeconds && (
                   <>
                     <ProgressBar pct={(shown / t.estimateSeconds) * 100} over={shown > t.estimateSeconds} />
@@ -174,17 +234,13 @@ export function TodayScreen() {
                   </>
                 )}
                 <div className="hstack" style={{ gap: 8, marginTop: 14 }}>
-                  {isRunning ? (
-                    <button className="btn primary" onClick={stopTimer}><Icon.Pause size={14} />Pause</button>
-                  ) : (
-                    <button className="btn primary" onClick={() => playTask(t.id)}><Icon.Play size={14} />Resume</button>
-                  )}
+                  <button className="btn primary" onClick={() => playTask(t.id)}><Icon.Play size={14} />Resume</button>
                   <button className="btn" onClick={() => push({ kind: 'task', id: t.id })}>Open task</button>
                 </div>
               </div>
             </div>
           );
-        })()}
+        })() : null}
 
         {data && data.urgent.length > 0 && (
           <div className="section">

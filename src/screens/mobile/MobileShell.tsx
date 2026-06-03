@@ -16,15 +16,16 @@ import { SettingsScreen } from './Settings';
 import { api } from '@/api/client';
 import { entries as entriesApi } from '@/api/mutations';
 import { onRealtime } from '@/api/websocket';
-import { useRunning } from '@/state/running';
-import { initNotifications, setNotificationHandlers, showTrackingNotification, cancelTrackingNotification, scheduleIdleReminder, showAutoStoppedNotification } from '@/native/notifications';
-import type { Settings, Task, TimeEntry } from '@/api/types';
+import { useRunning, combinedElapsed, fetchRunningTimers } from '@/state/running';
+import { initNotifications, setNotificationHandlers, showTrackingNotification, showMultiTrackingNotification, cancelTrackingNotification, scheduleIdleReminder, showAutoStoppedNotification } from '@/native/notifications';
+import type { Settings } from '@/api/types';
 import { isNative } from '@/utils/platform';
 
 export function MobileShell() {
   const { tab, setTab, stack, push, back } = useNav();
-  const setRunning = useRunning((s) => s.setRunning);
-  const running = useRunning((s) => s.running);
+  const setTimers = useRunning((s) => s.setTimers);
+  const removeTimer = useRunning((s) => s.removeTimer);
+  const timers = useRunning((s) => s.timers);
   const idleMinRef = useRef(60); // sane default until /me/settings loads
 
   // Android hardware-back: close any open sheet → else pop the nav stack →
@@ -61,8 +62,12 @@ export function MobileShell() {
     initNotifications();
     setNotificationHandlers({
       onPause: async () => {
-        try { await entriesApi.stopTimer(); } catch {}
-        setRunning(null);
+        // The ongoing notification represents the whole set; its Pause stops the
+        // most recently started timer (the primary).
+        const primary = useRunning.getState().timers[0];
+        if (!primary) return;
+        removeTimer(primary.entryId);
+        try { await entriesApi.stopTimer(primary.entryId); } catch {}
       },
       onOpenTask: (taskId: string) => push({ kind: 'task', id: taskId }),
       // Tapping "Review" on the auto-stop notification jumps straight into the
@@ -76,33 +81,21 @@ export function MobileShell() {
         if (me.settings?.idleDetectionMin) idleMinRef.current = me.settings.idleDetectionMin;
       } catch {}
     })();
-  }, [push, setRunning]);
+  }, [push, removeTimer]);
 
-  // Hydrate the running-timer state on boot + keep it live via WS.
+  // Hydrate the running-timer set on boot + keep it live via WS.
   useEffect(() => {
     const hydrate = async () => {
-      try {
-        const r = await api<TimeEntry | null>('/time-entries/running');
-        if (r?.id) {
-          let title: string | undefined;
-          if (r.taskId) {
-            try {
-              const t = await api<Task>(`/tasks/${r.taskId}`);
-              title = t.title;
-            } catch {}
-          }
-          setRunning({ entryId: r.id, taskId: r.taskId ?? null, taskTitle: title ?? null, startedAt: r.startedAt });
-        } else {
-          setRunning(null);
-        }
-      } catch {}
+      try { setTimers(await fetchRunningTimers()); } catch {}
     };
     hydrate();
     const offs = [
       onRealtime('timer.started', hydrate),
-      onRealtime('timer.stopped', () => setRunning(null)),
+      onRealtime('timer.stopped', (e: { entryId?: string }) => {
+        if (e?.entryId) removeTimer(e.entryId); else hydrate();
+      }),
       onRealtime('timer.autoStopped', (e: { entryId: string; taskTitle: string; durationSeconds: number }) => {
-        setRunning(null);
+        removeTimer(e.entryId);
         showAutoStoppedNotification({
           taskTitle: e.taskTitle,
           entryId: e.entryId,
@@ -111,23 +104,28 @@ export function MobileShell() {
       }),
     ];
     return () => offs.forEach((o) => o());
-  }, [setRunning]);
+  }, [setTimers, removeTimer]);
 
-  // Drive the OS notification: present whenever there's a running timer,
-  // cancel when there isn't. Also (re)schedule a "still tracking?" reminder.
+  // Drive the OS notification from the running set: cancel when empty, show the
+  // single task when one runs, or a "N timers" summary when several do.
+  const primary = timers[0] ?? null;
   useEffect(() => {
-    if (running) {
-      const title = running.taskTitle ?? 'Task';
-      showTrackingNotification({
-        taskTitle: title,
-        taskId: running.taskId ?? '',
-        startedAt: running.startedAt,
-      });
-      scheduleIdleReminder({ taskTitle: title, taskId: running.taskId ?? '', minutes: idleMinRef.current });
-    } else {
+    if (timers.length === 0) {
       cancelTrackingNotification();
+      return;
     }
-  }, [running?.entryId, running?.taskId, running?.taskTitle]);
+    if (timers.length === 1 && primary) {
+      const title = primary.taskTitle ?? 'Task';
+      showTrackingNotification({ taskTitle: title, taskId: primary.taskId ?? '', startedAt: primary.startedAt });
+      scheduleIdleReminder({ taskTitle: title, taskId: primary.taskId ?? '', minutes: idleMinRef.current });
+    } else if (primary) {
+      showMultiTrackingNotification({
+        count: timers.length,
+        combinedSeconds: combinedElapsed(timers, Date.now()),
+        taskId: primary.taskId ?? '',
+      });
+    }
+  }, [timers.length, primary?.entryId, primary?.taskTitle]);
 
   const top = stack[stack.length - 1];
 

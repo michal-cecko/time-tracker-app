@@ -5,6 +5,7 @@ import { api } from '@/api/client';
 import { entries as entriesApi } from '@/api/mutations';
 import { QuickAddSheet } from '@/screens/mobile/QuickAdd';
 import { onRealtime } from '@/api/websocket';
+import { useRunning } from '@/state/running';
 import type { Project, Task, WeeklyReport } from '@/api/types';
 import { fmtDue, fmtHM } from '@/utils/format';
 
@@ -26,6 +27,22 @@ export function DesktopToday({
   const [also, setAlso] = useState<Bucket[]>([]);
   const [weekly, setWeekly] = useState<WeeklyReport | null>(null);
   const [quickAdd, setQuickAdd] = useState(false);
+  const { timers, upsertTimer, removeTimer } = useRunning();
+
+  // Toggle the timer for a specific task — under concurrent timers a stop must
+  // target that task's own running entry, not just "the" timer.
+  const toggleTimer = async (task: Task, project: Project) => {
+    const existing = timers.find((t) => t.taskId === task.id) ?? null;
+    if (existing) {
+      removeTimer(existing.entryId);
+      await entriesApi.stopTimer(existing.entryId);
+    } else {
+      const meta = { taskTitle: task.title, projectId: project.id, projectColor: project.colorHex, projectName: project.name };
+      upsertTimer({ entryId: 'pending', taskId: task.id, startedAt: new Date().toISOString(), ...meta });
+      const entry = await entriesApi.startTimer(task.id);
+      if (entry) upsertTimer({ entryId: entry.id, taskId: entry.taskId ?? task.id, startedAt: entry.startedAt, ...meta });
+    }
+  };
 
   const load = async () => {
     const projects = await api<Project[]>('/projects?archived=false');
@@ -79,10 +96,7 @@ export function DesktopToday({
             project={b.project}
             onSelect={() => onSelectTask(b.task.id)}
             onSelectProject={() => onSelectProject(b.project.id)}
-            onToggleTimer={async () => {
-              if (b.task.running) await entriesApi.stopTimer();
-              else await entriesApi.startTimer(b.task.id);
-            }}
+            onToggleTimer={() => toggleTimer(b.task, b.project)}
           />
         ))}
       </DesktopTaskColumn>
@@ -97,10 +111,7 @@ export function DesktopToday({
             project={b.project}
             onSelect={() => onSelectTask(b.task.id)}
             onSelectProject={() => onSelectProject(b.project.id)}
-            onToggleTimer={async () => {
-              if (b.task.running) await entriesApi.stopTimer();
-              else await entriesApi.startTimer(b.task.id);
-            }}
+            onToggleTimer={() => toggleTimer(b.task, b.project)}
           />
         ))}
       </DesktopTaskColumn>

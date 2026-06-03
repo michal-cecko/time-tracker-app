@@ -17,7 +17,7 @@ import { tasks as tasksApi, entries as entriesApi } from '@/api/mutations';
 import type { ActivityLog, BillingMode, Project, Task, TimeEntry } from '@/api/types';
 import { STATUS_META } from '@/api/types';
 import { fmtClock, fmtHM, fmtHMS, fmtMoneyCents } from '@/utils/format';
-import { useRunning } from '@/state/running';
+import { useRunning, elapsedOf } from '@/state/running';
 
 export function Inspector({
   taskId,
@@ -44,7 +44,7 @@ export function Inspector({
   const [logOpen, setLogOpen] = useState(false);
   const [quickAddSubtask, setQuickAddSubtask] = useState(false);
   const [billingDraft, setBillingDraft] = useState<{ mode: BillingMode; rate: string; price: string } | null>(null);
-  const { running, elapsed, tick } = useRunning();
+  const { timers, now, tick, upsertTimer, removeTimer } = useRunning();
 
   const load = async (id: string) => {
     const t = await api<Task>(`/tasks/${id}`);
@@ -90,7 +90,9 @@ export function Inspector({
     );
   }
 
-  const isRunning = !!running && running.taskId === task.id;
+  const runningTimer = timers.find((t) => t.taskId === task.id) ?? null;
+  const isRunning = !!runningTimer;
+  const elapsed = runningTimer ? elapsedOf(runningTimer, now) : 0;
   const tracked = isRunning ? elapsed : task.totalTime;
   const totalTracked = task.totalTime + (isRunning ? elapsed : 0);
   const est = task.estimateSeconds;
@@ -186,8 +188,22 @@ export function Inspector({
               className="dt-btn primary"
               style={{ flex: 1, justifyContent: 'center' }}
               onClick={async () => {
-                if (isRunning) await entriesApi.stopTimer();
-                else await entriesApi.startTimer(task.id);
+                if (isRunning && runningTimer) {
+                  removeTimer(runningTimer.entryId);
+                  await entriesApi.stopTimer(runningTimer.entryId);
+                } else {
+                  upsertTimer({
+                    entryId: 'pending', taskId: task.id, taskTitle: task.title,
+                    projectId: project?.id, projectColor: project?.colorHex, projectName: project?.name ?? null,
+                    startedAt: new Date().toISOString(),
+                  });
+                  const entry = await entriesApi.startTimer(task.id);
+                  if (entry) upsertTimer({
+                    entryId: entry.id, taskId: task.id, taskTitle: task.title,
+                    projectId: project?.id, projectColor: project?.colorHex, projectName: project?.name ?? null,
+                    startedAt: entry.startedAt,
+                  });
+                }
               }}
             >
               {isRunning ? <><Icon.Pause size={12} /> Pause</> : <><Icon.Play size={11} /> Start timer</>}

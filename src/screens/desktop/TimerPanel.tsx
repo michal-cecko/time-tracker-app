@@ -3,7 +3,7 @@ import { Icon } from '@/components/ui/Icon';
 import { api } from '@/api/client';
 import { entries as entriesApi } from '@/api/mutations';
 import { useRunning } from '@/state/running';
-import { fmtHM, fmtHMS } from '@/utils/format';
+import { fmtHM } from '@/utils/format';
 import type { Project, Task, TimeEntry } from '@/api/types';
 
 interface TimerPanelProps {
@@ -23,7 +23,7 @@ interface TaskLite { id: string; title: string; projectId: string; }
  *   Each row offers replay (start a new timer for that task) and delete.
  */
 export function TimerPanel({ onClose, onSelectTask }: TimerPanelProps) {
-  const { running, elapsed, setRunning } = useRunning();
+  const upsertTimer = useRunning((s) => s.upsertTimer);
 
   const [timeInput, setTimeInput] = useState('');
   const [pickedTaskId, setPickedTaskId] = useState<string | null>(null);
@@ -79,41 +79,41 @@ export function TimerPanel({ onClose, onSelectTask }: TimerPanelProps) {
 
   const selectedTask = pickedTaskId ? tasks.find((t) => t.id === pickedTaskId) ?? null : null;
   const selectedProject = selectedTask ? projects.find((p) => p.id === selectedTask.projectId) ?? null : null;
-  const runningTask = running?.taskId ? tasks.find((t) => t.id === running.taskId) ?? null : null;
-  const runningProject = runningTask ? projects.find((p) => p.id === runningTask.projectId) ?? null : null;
 
   const parsedDuration = useMemo(() => parseDuration(timeInput), [timeInput]);
 
+  // Always starts a *new* concurrent timer for the picked task. The backend is
+  // idempotent per task, so re-starting a task that's already running is a
+  // no-op rather than a duplicate.
   const startTimer = async () => {
     setSaving(true);
     try {
       const startedAtIso = new Date().toISOString();
-      setRunning({
+      const taskId = pickedTaskId ?? null;
+      upsertTimer({
         entryId: 'pending',
-        taskId: pickedTaskId ?? '',
+        taskId,
         taskTitle: selectedTask?.title ?? null,
+        projectId: selectedProject?.id,
+        projectColor: selectedProject?.colorHex,
+        projectName: selectedProject?.name ?? null,
         startedAt: startedAtIso,
       });
-      const entry = await entriesApi.startTimer(pickedTaskId ?? '');
+      const entry = await entriesApi.startTimer(taskId);
       if (entry) {
-        setRunning({
+        upsertTimer({
           entryId: entry.id,
-          taskId: entry.taskId ?? '',
+          taskId: entry.taskId ?? null,
           taskTitle: selectedTask?.title ?? null,
+          projectId: selectedProject?.id,
+          projectColor: selectedProject?.colorHex,
+          projectName: selectedProject?.name ?? null,
           startedAt: entry.startedAt,
         });
       }
-      // Reset composer fields after starting.
-      setTimeInput(''); setNote('');
-    } finally { setSaving(false); }
-  };
-
-  const stopTimer = async () => {
-    setSaving(true);
-    try {
-      setRunning(null);
-      await entriesApi.stopTimer();
-      await reloadHistory();
+      // Reset composer fields after starting and close the panel.
+      setTimeInput(''); setNote(''); setPickedTaskId(null);
+      onClose();
     } finally { setSaving(false); }
   };
 
@@ -139,9 +139,29 @@ export function TimerPanel({ onClose, onSelectTask }: TimerPanelProps) {
     try { setHistory(await api<TimeEntry[]>('/time-entries')); } catch { /* offline */ }
   };
 
-  const replay = async (taskId: string | null) => {
-    if (!taskId) return;
-    await entriesApi.startTimer(taskId);
+  const replay = async (e: TimeEntry) => {
+    if (!e.taskId) return;
+    upsertTimer({
+      entryId: 'pending',
+      taskId: e.taskId,
+      taskTitle: e.task?.title ?? null,
+      projectId: e.task?.project?.id,
+      projectColor: e.task?.project?.colorHex,
+      projectName: e.task?.project?.name ?? null,
+      startedAt: new Date().toISOString(),
+    });
+    const entry = await entriesApi.startTimer(e.taskId);
+    if (entry) {
+      upsertTimer({
+        entryId: entry.id,
+        taskId: entry.taskId ?? null,
+        taskTitle: e.task?.title ?? null,
+        projectId: e.task?.project?.id,
+        projectColor: e.task?.project?.colorHex,
+        projectName: e.task?.project?.name ?? null,
+        startedAt: entry.startedAt,
+      });
+    }
     await reloadHistory();
   };
 
@@ -170,21 +190,11 @@ export function TimerPanel({ onClose, onSelectTask }: TimerPanelProps) {
           <input
             type="text"
             className="tp-time-input"
-            placeholder={running ? 'Tracking…' : 'Enter time (ex: 3h 20m) or start timer'}
-            value={running ? fmtHMS(elapsed) : timeInput}
+            placeholder="Enter time (ex: 3h 20m) or start timer"
+            value={timeInput}
             onChange={(e) => setTimeInput(e.target.value)}
-            readOnly={!!running}
           />
-          {running ? (
-            <button
-              className="tp-play tp-stop"
-              onClick={stopTimer}
-              disabled={saving}
-              aria-label="Stop timer"
-            >
-              <Icon.Pause size={16} />
-            </button>
-          ) : parsedDuration ? null : (
+          {parsedDuration ? null : (
             <button
               className="tp-play"
               onClick={startTimer}
@@ -202,12 +212,7 @@ export function TimerPanel({ onClose, onSelectTask }: TimerPanelProps) {
           onClick={() => setTaskPickerOpen((v) => !v)}
         >
           <Icon.Target size={14} />
-          {running && runningTask ? (
-            <span className="tp-field-val">
-              <span className="dot" style={{ background: runningProject?.colorHex }} />
-              {runningTask.title}
-            </span>
-          ) : selectedTask ? (
+          {selectedTask ? (
             <span className="tp-field-val">
               <span className="dot" style={{ background: selectedProject?.colorHex }} />
               {selectedTask.title}
@@ -296,7 +301,7 @@ export function TimerPanel({ onClose, onSelectTask }: TimerPanelProps) {
                   <span className="mono tp-entry-dur">{fmtHM(e.endedAt ? e.durationSeconds : 0)}</span>
                   <button
                     className="tp-entry-btn"
-                    onClick={(ev) => { ev.stopPropagation(); replay(e.taskId); }}
+                    onClick={(ev) => { ev.stopPropagation(); replay(e); }}
                     disabled={!e.taskId}
                     aria-label="Resume timer for this task"
                     title={e.taskId ? 'Resume timer' : 'Unassigned entry — no task to resume'}

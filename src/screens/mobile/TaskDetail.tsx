@@ -21,7 +21,7 @@ import type { ActivityLog, BillingMode, Project, Task, TimeEntry } from '@/api/t
 import { STATUS_META } from '@/api/types';
 import { fmtClock, fmtHM, fmtHMS, fmtMoneyCents } from '@/utils/format';
 import { useNav } from '@/state/stack';
-import { useRunning } from '@/state/running';
+import { useRunning, elapsedOf } from '@/state/running';
 
 export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => void }) {
   const [task, setTask] = useState<Task | null>(null);
@@ -39,7 +39,7 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
   const [entryDelete, setEntryDelete] = useState<TimeEntry | null>(null);
   const [newSubtaskOpen, setNewSubtaskOpen] = useState(false);
   const { push } = useNav();
-  const { elapsed, running, tick, setRunning } = useRunning();
+  const { now, tick, timers, upsertTimer, removeTimer } = useRunning();
 
   const load = async () => {
     const t = await api<Task>(`/tasks/${id}`);
@@ -74,21 +74,29 @@ export function TaskDetailScreen({ id, onBack }: { id: string; onBack: () => voi
 
   if (!task || !billingDraft) return <div className="scroll" style={{ padding: 60 }}>Loading…</div>;
 
-  const isRunning = !!running && running.taskId === task.id;
+  const runningTimer = timers.find((t) => t.taskId === task.id) ?? null;
+  const isRunning = !!runningTimer;
+  const elapsed = runningTimer ? elapsedOf(runningTimer, now) : 0;
   const tracked = isRunning ? elapsed : task.totalTime;
 
   const startStop = async () => {
-    // Optimistically flip useRunning so the button reacts instantly. WS events
-    // arriving later will reconcile.
-    if (isRunning) {
-      setRunning(null);
-      try { await entriesApi.stopTimer(); } catch { /* offline → optimistic state stays */ }
+    // Optimistically update the running set so the button reacts instantly. WS
+    // events arriving later will reconcile.
+    if (isRunning && runningTimer) {
+      removeTimer(runningTimer.entryId);
+      try { await entriesApi.stopTimer(runningTimer.entryId); } catch { /* offline → optimistic state stays */ }
     } else {
       const optimisticStartedAt = new Date().toISOString();
-      setRunning({ entryId: 'pending', taskId: task.id, taskTitle: task.title, startedAt: optimisticStartedAt });
+      const meta = {
+        taskTitle: task.title,
+        projectId: project?.id,
+        projectColor: project?.colorHex,
+        projectName: project?.name ?? null,
+      };
+      upsertTimer({ entryId: 'pending', taskId: task.id, startedAt: optimisticStartedAt, ...meta });
       try {
         const entry = await entriesApi.startTimer(task.id);
-        if (entry) setRunning({ entryId: entry.id, taskId: entry.taskId, taskTitle: task.title, startedAt: entry.startedAt });
+        if (entry) upsertTimer({ entryId: entry.id, taskId: entry.taskId ?? task.id, startedAt: entry.startedAt, ...meta });
       } catch { /* keep optimistic state for offline */ }
     }
   };

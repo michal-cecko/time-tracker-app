@@ -338,7 +338,37 @@
   background: var(--accent); color: #1a0e07;
   display: flex; align-items: center; justify-content: center;
   margin-left: auto;
+  flex-shrink: 0;
 }
+
+/* Multi-timer variant — collapsible header + per-timer list. */
+.minibar.multi { flex-direction: column; align-items: stretch; gap: 0; padding: 0; }
+.minibar-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px; background: none; border: 0; color: inherit;
+  font-family: inherit; cursor: pointer; width: 100%; text-align: left;
+}
+.minibar-count { font-size: 13px; font-weight: 600; color: var(--text); }
+.minibar-combined { font-size: 12px; color: var(--text-3); margin-left: auto; }
+.minibar-list {
+  display: flex; flex-direction: column;
+  border-top: 1px solid var(--line);
+  padding: 4px;
+}
+.minibar-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px; border-radius: 12px;
+}
+.minibar-row + .minibar-row { margin-top: 2px; }
+.minibar-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+/* "N timers running" accordion header above the Today hero cards. */
+.tracking-accordion {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 6px 4px 12px; background: none; border: 0; cursor: pointer;
+  font-family: inherit; text-align: left;
+}
+.tracking-accordion .right { margin-left: auto; }
 
 /* Buttons */
 .app .btn {

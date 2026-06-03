@@ -118,6 +118,29 @@ export async function showTrackingNotification({ taskTitle, taskId, startedAt }:
   } catch {}
 }
 
+/** Ongoing notification summarising several concurrent timers. Pause stops the
+ *  primary (most recently started) timer; tapping opens the app. */
+export async function showMultiTrackingNotification({ count, combinedSeconds, taskId }: { count: number; combinedSeconds: number; taskId: string }) {
+  const N = await ln();
+  if (!N) return;
+  const h = Math.floor(combinedSeconds / 3600);
+  const m = Math.floor((combinedSeconds % 3600) / 60);
+  const combined = h > 0 ? `${h}h ${m}m` : `${m}m`;
+  try {
+    await N.schedule({
+      notifications: [{
+        id: TRACKING_ID,
+        title: `Tracking · ${count} timers`,
+        body: `${combined} combined — tap to manage`,
+        ongoing: true,
+        autoCancel: false,
+        actionTypeId: ACTION_TYPE,
+        extra: { taskId },
+      }],
+    });
+  } catch {}
+}
+
 export async function cancelTrackingNotification() {
   const N = await ln();
   if (!N) return;
