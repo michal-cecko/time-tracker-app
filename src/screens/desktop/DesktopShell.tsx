@@ -9,7 +9,6 @@ import { useAuth } from '@/auth/AuthContext';
 import { platform } from '@/utils/platform';
 import { fmtHM, fmtHMS, fmtHoursShort, fmtInitials } from '@/utils/format';
 import type { Project } from '@/api/types';
-import { RunningTimersDropdown } from './RunningTimersDropdown';
 import { DesktopToday } from './DesktopToday';
 import { DesktopProjectDetail } from './DesktopProjectDetail';
 import { DesktopCalendar } from './DesktopCalendar';
@@ -44,7 +43,6 @@ export function DesktopShell() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [timerPanelOpen, setTimerPanelOpen] = useState(false);
-  const [timersOpen, setTimersOpen] = useState(false);
   const { timers, now, tick, setTimers, removeTimer } = useRunning();
   const { user } = useAuth();
 
@@ -130,27 +128,14 @@ export function DesktopShell() {
               primary={primary}
               extraCount={Math.max(0, timers.length - 1)}
               elapsed={primary ? elapsedOf(primary, now) : 0}
-              onClick={() => {
-                if (timers.length > 0) setTimersOpen((v) => !v);
-                else setTimerPanelOpen((v) => !v);
-              }}
+              onClick={() => setTimerPanelOpen((v) => !v)}
               onStop={async () => {
                 if (!primary) return;
                 removeTimer(primary.entryId);
                 await entriesApi.stopTimer(primary.entryId);
               }}
-              ariaExpanded={timersOpen || timerPanelOpen}
+              ariaExpanded={timerPanelOpen}
             />
-            {timersOpen && (
-              <RunningTimersDropdown
-                timers={timers}
-                now={now}
-                onStop={async (entryId) => { removeTimer(entryId); await entriesApi.stopTimer(entryId); }}
-                onSelectTask={(id) => { setSelectedTaskId(id); setTimersOpen(false); }}
-                onTrackNew={() => { setTimersOpen(false); setTimerPanelOpen(true); }}
-                onClose={() => setTimersOpen(false)}
-              />
-            )}
             {timerPanelOpen && (
               <TimerPanel
                 onClose={() => setTimerPanelOpen(false)}

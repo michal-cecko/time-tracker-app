@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { api } from '@/api/client';
 import { entries as entriesApi } from '@/api/mutations';
-import { useRunning } from '@/state/running';
-import { fmtHM } from '@/utils/format';
+import { useRunning, elapsedOf, combinedElapsed } from '@/state/running';
+import { fmtHM, fmtHMS } from '@/utils/format';
 import type { Project, Task, TimeEntry } from '@/api/types';
 
 interface TimerPanelProps {
@@ -23,7 +23,7 @@ interface TaskLite { id: string; title: string; projectId: string; }
  *   Each row offers replay (start a new timer for that task) and delete.
  */
 export function TimerPanel({ onClose, onSelectTask }: TimerPanelProps) {
-  const upsertTimer = useRunning((s) => s.upsertTimer);
+  const { timers, now, upsertTimer, removeTimer } = useRunning();
 
   const [timeInput, setTimeInput] = useState('');
   const [pickedTaskId, setPickedTaskId] = useState<string | null>(null);
@@ -111,9 +111,9 @@ export function TimerPanel({ onClose, onSelectTask }: TimerPanelProps) {
           startedAt: entry.startedAt,
         });
       }
-      // Reset composer fields after starting and close the panel.
+      // Reset composer fields. Keep the panel open so the new timer shows up in
+      // the running list above the composer.
       setTimeInput(''); setNote(''); setPickedTaskId(null);
-      onClose();
     } finally { setSaving(false); }
   };
 
@@ -170,6 +170,12 @@ export function TimerPanel({ onClose, onSelectTask }: TimerPanelProps) {
     setHistory((h) => h.filter((e) => e.id !== id));
   };
 
+  const stopRunning = async (entryId: string) => {
+    removeTimer(entryId);
+    try { await entriesApi.stopTimer(entryId); } catch { /* offline → optimistic state stays */ }
+    await reloadHistory();
+  };
+
   const groups = useMemo(() => groupByDay(history.slice(0, 80)), [history]);
   const todayTotal = useMemo(() => totalForDate(history, new Date()), [history]);
   // 6h is a placeholder daily goal — matches the ClickUp screenshot. Hook
@@ -184,6 +190,40 @@ export function TimerPanel({ onClose, onSelectTask }: TimerPanelProps) {
           {fmtHM(todayTotal)} <span style={{ color: 'var(--text-3)' }}>/ {fmtHM(goalSeconds)}</span>
         </span>
       </header>
+
+      {timers.length > 0 && (
+        <div className="tp-running">
+          <div className="tp-running-head">
+            <span className="tp-running-title">
+              <span className="dt-tp-live" />
+              {timers.length} timer{timers.length === 1 ? '' : 's'} running
+            </span>
+            <span className="mono tp-running-combined">{fmtHMS(combinedElapsed(timers, now))} combined</span>
+          </div>
+          {timers.map((t) => (
+            <div key={t.entryId} className="tp-running-row">
+              <span className="tp-running-dot" style={{ background: t.projectColor ?? 'var(--accent)' }} />
+              <button
+                className="tp-running-main"
+                onClick={() => t.taskId && onSelectTask?.(t.taskId)}
+                disabled={!t.taskId}
+              >
+                <span className="tp-running-name">{t.taskTitle ?? 'Unassigned timer'}</span>
+                {t.projectName && <span className="tp-running-proj">{t.projectName}</span>}
+              </button>
+              <span className="mono tp-running-time">{fmtHMS(elapsedOf(t, now))}</span>
+              <button
+                className="tp-running-pause"
+                onClick={() => stopRunning(t.entryId)}
+                aria-label={`Pause ${t.taskTitle ?? 'timer'}`}
+              >
+                <Icon.Pause size={13} />
+              </button>
+            </div>
+          ))}
+          <div className="tp-running-foot">Each tracker logs to its own task independently.</div>
+        </div>
+      )}
 
       <div className="tp-composer">
         <div className="tp-time-row">
